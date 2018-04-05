@@ -505,6 +505,7 @@ func TestGenSep0005Account2(t *testing.T) {
 
 }
 
+//https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0005.md
 func TestGenSep0005Account3(t *testing.T) {
 	words := "cable spray genius state float twenty onion head street palace net private method loan turn phrase state blanket interest dry amazing dress blast tube"
 	w := strings.Split(words, " ")
@@ -801,6 +802,80 @@ func TestAddAddressBookAccount1(t *testing.T) {
 	}
 }
 
+func TestAsset1(t *testing.T) {
+	w := createWallet2(t, "pass")
+
+	a := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
+	if a == nil {
+		t.Fatal("add asset failed")
+	}
+
+	err := a.SetDescription("asset description") 
+	if err != nil {
+		t.Fatalf("set description failed: %s", err.Error())
+	}
+
+	a = w.AddAsset("invalid", "EURT10eu")
+	if a != nil {
+		t.Fatal("invalid issuer accepted")
+	}
+
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "")
+	if a != nil {
+		t.Fatal("invalid assetId accepted")
+	}
+
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "E U")
+	if a != nil {
+		t.Fatal("invalid assetId accepted")
+	}
+
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "1234567890123")
+	if a != nil {
+		t.Fatal("invalid assetId accepted")
+	}
+
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT1")
+	if a == nil {
+		t.Fatal("add asset failed")
+	}
+
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT2")
+	if a == nil {
+		t.Fatal("add asset failed")
+	}
+
+	if !w.DeleteAsset(a) {
+		t.Fatal("delete asset failed")
+	}
+
+	assets := w.GetAssets()
+	if len(assets) != 2 {
+		t.Fatal("unexpected asset count")
+	}
+
+	assets = w.FindAssetsByIssuer("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS")
+	if len(assets) != 2 {
+		t.Fatal("unexpected find asset count")
+	}
+	
+	a = w.FindAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
+
+	if a == nil {
+		t.Fatal("asset not found")
+	}
+
+	if a.GetDescription() != "asset description" {
+		t.Fatal("description mismatch")
+	}
+	
+	a = w.FindAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT2")
+
+	if a != nil {
+		t.Fatal("unexpected asset found")
+	}
+}
+
 func createWallet1(t *testing.T, wPw string) *Wallet {
 	words := "merge silver adult unusual dilemma air winner safe smile region oil maximum gorilla process link aspect spoon junk crowd employ fury case join one"
 	w := strings.Split(words, " ")
@@ -814,6 +889,8 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 		t.Logf("generate wallet from mnemonic failed")
 		t.FailNow()
 	}
+
+	wallet.SetDescription("wallet description")
 
 	var a *Account
 	for i := 0; i < 4; i++ {
@@ -851,6 +928,26 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 	if a == nil {
 		t.Fatalf("AddAddressBookAccount failed")
 	}
+
+	as := wallet.AddAsset("GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", "EURT")
+	if as == nil {
+		t.Fatalf("AddAsset failed")
+	}
+
+	if !wallet.DeleteAsset(as) {
+		t.Fatalf("DeleteAsset failed")	
+	}
+
+	as = wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
+	if as == nil {
+		t.Fatalf("AddAsset failed")
+	}
+
+	as = wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT")
+	if as == nil {
+		t.Fatalf("AddAsset failed")
+	}
+	as.SetDescription("asset description")
 
 	return wallet
 
@@ -953,6 +1050,28 @@ func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Accoun
 	}
 }
 
+func compareAssets(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Asset) {
+	if a1.GetDescription() != a2.GetDescription() {
+		t.Errorf("compareAsset: type mismatch")
+	}
+
+	if a1.Issuer() != a2.Issuer() {
+		t.Errorf("compareAsset: issuer mismatch")
+	}
+
+	if a1.AssetId() != a2.AssetId() {
+		t.Errorf("compareAsset: assetId mismatch")
+	}
+
+	if verbose {
+		t.Logf("Asset Issuer: %s", a1.Issuer())
+		t.Logf("Asset ID: %s", a1.AssetId())
+		t.Logf("Asset description: %s", a1.GetDescription())
+	}
+
+}
+	
+
 func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet) {
 	if w1.desc != w2.desc {
 		t.Fatalf("verification of description failed")
@@ -1024,8 +1143,25 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 		}
 		compareAccounts(t, verbose, pw1, pw2, a1, a2)
 	}
+
+	assets1 := w1.GetAssets()
+	assets2 := w2.GetAssets()
+	l1 = len(assets1)
+	l2 = len(assets2)
+
+	t.Logf("Asset count: %d", l1)
 	
-	
+	if l1 != l2 {
+		t.Fatalf("verification of asset count failed: %d vs %d", l1, l2)
+	}
+
+	for _, a1 := range assets1 {
+		a2 := w2.FindAsset(a1.Issuer(), a1.AssetId())
+		if a2 == nil {
+			t.Fatalf("asset not found") 
+		}
+		compareAssets(t, verbose, pw1, pw2, a1, a2)
+	}
 }
 
 func TestIO1(t *testing.T) {

@@ -25,6 +25,11 @@ const tagAccountType = 7
 const tagAccountPublicKey = 8
 const tagAccountPrivateKey = 9
 const tagAccountSep005DerivationPath = 10
+const tagAsset = 20
+const tagAssetDesc = 21
+const tagAssetIssuer = 22
+const tagAssetAssetId = 23
+
 const tagWalletStart = 100
 const tagWalletEnd = 101
 
@@ -190,6 +195,23 @@ func (w *Wallet) writeToBuffer() []byte {
 		}
 	}
 
+	for i, _ := range w.assets {
+		a := &w.assets[i]
+
+		if a.active {
+			writeTag(buf, tagAsset)
+
+			writeTag(buf, tagAssetDesc)
+			writeString(buf, a.desc)
+			
+			writeTag(buf, tagAssetIssuer)
+			writeString(buf, a.issuer)
+			
+			writeTag(buf, tagAssetAssetId)
+			writeString(buf, a.assetId)			
+		}
+	}
+
 	writeTag(buf, tagWalletEnd)
 
 	data := make([]byte, buf.Len())
@@ -227,7 +249,9 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 	}
 
 	// parse buffer
-	var a *Account
+	var ac *Account
+	var as *Asset
+
 	r := bytes.NewReader(buf)
 
 	tag, err := readTag(r)
@@ -263,39 +287,61 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			w.sep0005AccountCount = d
 
 		case tagAccount:
-			a = w.newAccount()
-			a.active = true
+			ac = w.newAccount()
+			ac.active = true
 
 		case tagAccountDesc:
-			if a == nil { return errors.New("unexpected account tag") }
+			if ac == nil { return errors.New("unexpected account tag") }
 			s, err := readString(r)
 			if err != nil { return err }
-			a.desc = s
+			ac.desc = s
 				
 		case tagAccountType:
-			if a == nil { return errors.New("unexpected account tag") }
+			if ac == nil { return errors.New("unexpected account tag") }
 			d, err := readUint16(r)
 			if err != nil { return err }
-			a.accountType = d
+			ac.accountType = d
 
 		case tagAccountPublicKey:
-			if a == nil { return errors.New("unexpected account tag") }
+			if ac == nil { return errors.New("unexpected account tag") }
 			s, err := readString(r)
 			if err != nil { return err }
-			a.publicKey = s
+			ac.publicKey = s
 
 		case tagAccountPrivateKey:
-			if a == nil { return errors.New("unexpected account tag") }
+			if ac == nil { return errors.New("unexpected account tag") }
 			buf, err := readBytes(r)
 			if err != nil { return err }
-			a.privateKey = buf
+			ac.privateKey = buf
 
 		case tagAccountSep005DerivationPath:
-			if a == nil { return errors.New("unexpected account tag") }
+			if ac == nil { return errors.New("unexpected account tag") }
 			s, err := readString(r)
 			if err != nil { return err }
-			a.sep0005DerivationPath = s
+			ac.sep0005DerivationPath = s
 
+		case tagAsset:
+			as = w.newAsset()
+			as.active = true
+
+		case tagAssetDesc:
+			if as == nil { return errors.New("unexpected asset tag") }
+			s, err := readString(r)
+			if err != nil { return err }
+			as.desc = s
+
+		case tagAssetIssuer:
+			if as == nil { return errors.New("unexpected asset tag") }
+			s, err := readString(r)
+			if err != nil { return err }
+			as.issuer = s
+
+		case tagAssetAssetId:
+			if as == nil { return errors.New("unexpected asset tag") }
+			s, err := readString(r)
+			if err != nil { return err }
+			as.assetId = s
+			
 		case tagWalletEnd:
 			stop = true
 
@@ -320,7 +366,6 @@ func (w *Wallet) writeToBufferCompressed() []byte {
 	n, err := compress.Write(buf)
 	if err != nil { panic("compressing failed: " + err.Error()) }
 	if n != len(buf) { panic("compressing failed: " + err.Error()) }
-
 		
 	err = compress.Close()
 	if err != nil { panic("compressing failed: " + err.Error()) }
@@ -335,7 +380,7 @@ func (w *Wallet) readFromBufferCompressed(buf []byte) error {
 	decompress, err := gzip.NewReader(r)
 	if err != nil { return errors.New("de-compressing failed: " + err.Error()) }
 	
-	blkLen := 10
+	blkLen := 100
 
 	tmp := make([]byte, blkLen)
 	var result []byte

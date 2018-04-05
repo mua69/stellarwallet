@@ -5,6 +5,7 @@ import(
 	"errors"
 	"strings"
 	"bytes"
+	"unicode"
 
 	"crypto/sha1"	
 	"crypto/aes"
@@ -50,6 +51,9 @@ type Account struct {
 }
 
 type Asset struct {
+	wallet *Wallet
+	active bool
+
 	desc string
 	issuer string
 	assetId string
@@ -76,13 +80,55 @@ func EraseByteBuffer(b []byte) {
 	}
 }
 
-/*
+
 func EraseString(s string) {
-	for i, _ := range s {
-		s[i] = 'x'
-	}
+	EraseByteBuffer([]byte(s))
 }
-*/
+
+func CheckDescription(s string) error {
+	if len(s) > 2000 {
+		return errors.New("exceeds max length (2000 characters)")
+	}
+
+	return nil
+}
+
+func CheckPublicKey(s string) bool {
+	_, err := strkey.Decode(strkey.VersionByteAccountID, s)
+
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
+func CheckPrivateKey(s *string) bool {
+	_, err := strkey.Decode(strkey.VersionByteSeed, *s)
+
+	if err != nil {
+		return false
+	}
+
+	return true
+
+}
+
+func CheckAssetId(s string) error {
+	l := len(s)
+
+	if l < 1 || l > 12 {
+		return errors.New("invalid length")
+	}
+
+	for _, c := range s {
+		if !(unicode.IsLetter(c) || unicode.IsDigit(c)) {
+			return errors.New("invalid character: " + string(c))
+		}
+	}
+
+	return nil
+}
 
 func NewWallet(password *string) *Wallet {
 	wallet := new(Wallet)
@@ -184,6 +230,20 @@ func (w *Wallet)clearAccounts() {
 	}
 }
 
+func (w *Wallet)GetDescription() string {
+	return w.desc
+}
+
+func (w *Wallet)SetDescription(desc string) error {
+	err := CheckDescription(desc)
+	if err != nil {
+		return err
+	}
+
+	w.desc = desc
+
+	return nil
+}
 
 
 func deriveAesKey(password *string) (key []byte) {
@@ -616,9 +676,7 @@ func (w *Wallet)AddRandomAccount(seed *string, walletPassword *string) *Account 
 
 func (w *Wallet)AddWatchingAccount(pubkey string) *Account {
 
-	_, err := strkey.Decode(strkey.VersionByteAccountID, pubkey)
-
-	if err != nil {
+	if !CheckPublicKey(pubkey) {
 		return nil
 	}
 
@@ -640,9 +698,7 @@ func (w *Wallet)AddWatchingAccount(pubkey string) *Account {
 
 func (w *Wallet)AddAddressBookAccount(pubkey string) *Account {
 
-	_, err := strkey.Decode(strkey.VersionByteAccountID, pubkey)
-
-	if err != nil {
+	if !CheckPublicKey(pubkey) {
 		return nil
 	}
 
@@ -720,6 +776,97 @@ func (w *Wallet)GetAddressBook() []*Account {
 	return accounts
 }
 
+func (w *Wallet)GetAssets() []*Asset {
+	assets := make([]*Asset, 0, len(w.assets))
+
+	for i, _ := range w.assets {
+		a := &w.assets[i]
+		if a.active {
+			assets = append(assets, a)
+		}
+	}
+
+	return assets
+}
+
+func (w *Wallet)FindAsset(issuer, assetId string) *Asset {
+	for i,_ := range w.assets {
+		a := &w.assets[i]
+
+		if a.active && a.issuer == issuer && a.assetId == assetId {
+			return a
+		}
+	}
+
+	return nil
+}
+
+func (w *Wallet)FindAssetsByIssuer(issuer string) []*Asset {
+	assets := make([]*Asset, 0, len(w.assets))
+
+	for i,_ := range w.assets {
+		a := &w.assets[i]
+
+		if a.active && a.issuer == issuer {
+			assets = append(assets, a)
+		}
+	}
+
+	return assets
+}
+
+func (w *Wallet)newAsset() *Asset {
+	for i, _ := range w.assets {
+		a := &w.assets[i]
+		if !a.active {
+			a.init(w)
+			return a
+		}
+	}
+
+	w.assets = append(w.assets, Asset{})
+
+	a := &w.assets[len(w.assets)-1]
+
+	a.init(w)
+
+	return a
+}
+
+func (w *Wallet)AddAsset(issuer, assetId string) *Asset {
+	if !CheckPublicKey(issuer) {
+		return nil
+	}
+
+
+	if CheckAssetId(assetId) != nil {
+		return nil
+	}
+
+
+	a := w.FindAsset(issuer, assetId)
+	if a != nil {
+		return a
+	}
+
+	a = w.newAsset()
+
+	a.issuer = issuer
+	a.assetId = assetId
+	a.active = true
+
+	return a
+}	
+	
+func (w *Wallet)DeleteAsset(ass *Asset) bool {
+	if ass.wallet == w {
+		ass.active = false
+		return true
+	}
+
+	return false
+}
+
 func (a *Account)init(wallet *Wallet) {
 	a.wallet = wallet
 	a.accountType = AccountTypeUndefined
@@ -771,8 +918,15 @@ func (a *Account)GetDescription() string {
 	return a.desc
 }
 
-func (a *Account)SetDescription(desc string) {
+func (a *Account)SetDescription(desc string) error {
+	err := CheckDescription(desc)
+	if err != nil {
+		return err
+	}
+
 	a.desc = desc
+
+	return nil
 }
 
 
@@ -826,3 +980,31 @@ func (a *Account)PrivateKey(walletPassword *string) string {
 	return ""
 }
 
+func (a *Asset)init(wallet *Wallet) {
+	a.wallet = wallet
+	a.issuer = ""
+	a.assetId = ""
+}
+
+func (a *Asset)GetDescription() string {
+	return a.desc
+}
+
+func (a *Asset)SetDescription(desc string) error {
+	err := CheckDescription(desc)
+	if err != nil {
+		return err
+	}
+
+	a.desc = desc
+
+	return nil
+}
+
+func (a *Asset)Issuer() string {
+	return a.issuer
+}
+
+func (a *Asset)AssetId() string {
+	return a.assetId
+}
