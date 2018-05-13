@@ -371,6 +371,7 @@ func TestGenBip39Seed2(t *testing.T) {
 	}
 }
 
+
 func TestGenSep0005Account1(t *testing.T) {
 	words := "merge silver adult unusual dilemma air winner safe smile region oil maximum gorilla process link aspect spoon junk crowd employ fury case join one"
 	w := strings.Split(words, " ")
@@ -574,6 +575,339 @@ func TestGenSep0005Account3(t *testing.T) {
 		t.Logf("word lists do not match")
 	}
 
+	accounts := wallet.GetSeedAccounts()
+
+	if len(accounts) != 10 {
+		t.Fatalf("unexpect account count: %d", len(accounts))
+	}
+
+}
+
+func TestRecoverAccounts1(t *testing.T) {
+	wPw := "stellarwalletpw"
+
+	w := createWalletStd1(t, wPw)
+
+	fundedCheckResults := []struct{ adr string
+		res bool } {
+			{ "GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ", false},
+			{"GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", false},
+			{"GDYF7GIHS2TRGJ5WW4MZ4ELIUIBINRNYPPAWVQBPLAZXC2JRDI4DGAKU", false},
+			{"GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD", false},
+			{"GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN", false},
+			{"GA6RUD4DZ2NEMAQY4VZJ4C6K6VSEYEJITNSLUQKLCFHJ2JOGC5UCGCFQ", false},
+			{"GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", false},
+			{"GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", false},
+			{"GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", false},
+			{"GDXOY6HXPIDT2QD352CH7VWX257PHVFR72COWQ74QE3TEV4PK2KCKZX7", false},
+			{"SCPA5OX4EYINOPAUEQCPY6TJMYICUS5M7TVXYKWXR3G5ZRAJXY3C37GF", false}}
+	
+	fundedCheck := func (adr string) bool {
+		for _, r := range fundedCheckResults {
+			if r.adr == adr {
+				return r.res
+			}
+		}
+		return false
+	}
+
+	w.RecoverAccounts(&wPw, 1, fundedCheck)
+
+	if len(w.GetAccounts()) != 0 {
+		t.Fatal("invalid account count")
+	}
+
+	a := w.GenerateSep0005Account(&wPw)
+
+	if a.PublicKey() != "GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ" {
+		t.Fatal("expected account not generated after recovery")
+	}
+
+
+}
+
+func TestRecoverAccounts2(t *testing.T) {
+	wPw := "stellarwalletpw"
+
+	w := createWalletStd1(t, wPw)
+
+
+
+	fundedCheckResults := []struct{ adr string
+		res bool
+		exp bool} {
+			{"GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ", true, true},
+			{"GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", false, false},
+			{"GDYF7GIHS2TRGJ5WW4MZ4ELIUIBINRNYPPAWVQBPLAZXC2JRDI4DGAKU", false, false},
+			{"GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD", false, false},
+			{"GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN", false, false},
+			{"GA6RUD4DZ2NEMAQY4VZJ4C6K6VSEYEJITNSLUQKLCFHJ2JOGC5UCGCFQ", false, false},
+			{"GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", false, false},
+			{"GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", false, false},
+			{"GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", false, false},
+			{"GDXOY6HXPIDT2QD352CH7VWX257PHVFR72COWQ74QE3TEV4PK2KCKZX7", false, false},
+			{"SCPA5OX4EYINOPAUEQCPY6TJMYICUS5M7TVXYKWXR3G5ZRAJXY3C37GF", false, false}}
+	
+	fundedCheck := func (adr string) bool {
+		for _, r := range fundedCheckResults {
+			if r.adr == adr {
+				return r.res
+			}
+		}
+		return false
+	}
+
+	w.RecoverAccounts(&wPw, 1, fundedCheck)
+	
+	if len(w.GetAccounts()) != 1 {
+		t.Fatal("invalid account count")
+	}
+
+	for _, r := range fundedCheckResults {
+		if r.exp {
+			if w.FindAccountByPublicKey(r.adr) == nil {
+				t.Fatal("expected account not found")
+			}
+		}
+	}
+
+	a := w.GenerateSep0005Account(&wPw)
+
+	if a.PublicKey() != "GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO" {
+		t.Fatal("expected account not generated after recovery")
+	}
+
+}
+
+func TestRecoverAccounts3(t *testing.T) {
+	wPw := "stellarwalletpw"
+
+	w := createWalletStd1(t, wPw)
+
+	fundedCheckResults := []struct{ adr string
+		res bool
+		exp bool} {
+			{"GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ", false, false},
+			{"GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", true, true},
+			{"GDYF7GIHS2TRGJ5WW4MZ4ELIUIBINRNYPPAWVQBPLAZXC2JRDI4DGAKU", false, false},
+			{"GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD", true, true},
+			{"GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN", false, false},
+			{"GA6RUD4DZ2NEMAQY4VZJ4C6K6VSEYEJITNSLUQKLCFHJ2JOGC5UCGCFQ", false, false},
+			{"GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", true, false},
+			{"GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", false, false},
+			{"GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", false, false},
+			{"GDXOY6HXPIDT2QD352CH7VWX257PHVFR72COWQ74QE3TEV4PK2KCKZX7", false, false},
+			{"SCPA5OX4EYINOPAUEQCPY6TJMYICUS5M7TVXYKWXR3G5ZRAJXY3C37GF", false, false}}
+	
+	fundedCheck := func (adr string) bool {
+		for _, r := range fundedCheckResults {
+			if r.adr == adr {
+				return r.res
+			}
+		}
+		return false
+	}
+
+	w.RecoverAccounts(&wPw, 1, fundedCheck)
+	
+	if len(w.GetAccounts()) != 2 {
+		t.Fatal("invalid account count")
+	}
+
+	for _, r := range fundedCheckResults {
+		if r.exp {
+			if w.FindAccountByPublicKey(r.adr) == nil {
+				t.Fatal("expected account not found")
+			}
+		}
+	}
+
+	a := w.GenerateSep0005Account(&wPw)
+
+	if a.PublicKey() != "GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN" {
+		t.Fatal("expected account not generated after recovery")
+	}
+
+}
+
+func TestRecoverAccounts4(t *testing.T) {
+	wPw := "stellarwalletpw"
+
+	w := createWalletStd1(t, wPw)
+
+	fundedCheckResults := []struct{ adr string
+		res bool
+		exp bool} {
+			{"GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ", false, false},
+			{"GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", true, true},
+			{"GDYF7GIHS2TRGJ5WW4MZ4ELIUIBINRNYPPAWVQBPLAZXC2JRDI4DGAKU", false, false},
+			{"GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD", true, true},
+			{"GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN", false, false},
+			{"GA6RUD4DZ2NEMAQY4VZJ4C6K6VSEYEJITNSLUQKLCFHJ2JOGC5UCGCFQ", false, false},
+			{"GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", true, true},
+			{"GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", false, false},
+			{"GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", false, false},
+			{"GDXOY6HXPIDT2QD352CH7VWX257PHVFR72COWQ74QE3TEV4PK2KCKZX7", false, false},
+			{"SCPA5OX4EYINOPAUEQCPY6TJMYICUS5M7TVXYKWXR3G5ZRAJXY3C37GF", true, false}}
+	
+	fundedCheck := func (adr string) bool {
+		for _, r := range fundedCheckResults {
+			if r.adr == adr {
+				return r.res
+			}
+		}
+		return false
+	}
+
+	w.RecoverAccounts(&wPw, 2, fundedCheck)
+	
+	if len(w.GetAccounts()) != 3 {
+		t.Fatal("invalid account count")
+	}
+
+	for _, r := range fundedCheckResults {
+		if r.exp {
+			if w.FindAccountByPublicKey(r.adr) == nil {
+				t.Fatal("expected account not found")
+			}
+		}
+	}
+
+	a := w.GenerateSep0005Account(&wPw)
+
+	if a.PublicKey() != "GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4" {
+		t.Fatal("expected account not generated after recovery")
+	}
+
+}
+
+func TestRecoverAccounts5(t *testing.T) {
+	wPw := "stellarwalletpw"
+
+	w := createWalletStd1(t, wPw)
+
+
+
+	fundedCheckResults := []struct{ adr string
+		res bool
+		exp bool} {
+			{"GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ", true, true},
+			{"GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", false, false},
+			{"GDYF7GIHS2TRGJ5WW4MZ4ELIUIBINRNYPPAWVQBPLAZXC2JRDI4DGAKU", true, false},
+			{"GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD", false, false},
+			{"GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN", false, false},
+			{"GA6RUD4DZ2NEMAQY4VZJ4C6K6VSEYEJITNSLUQKLCFHJ2JOGC5UCGCFQ", false, false},
+			{"GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", false, false},
+			{"GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", false, false},
+			{"GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", false, false},
+			{"GDXOY6HXPIDT2QD352CH7VWX257PHVFR72COWQ74QE3TEV4PK2KCKZX7", false, false},
+			{"SCPA5OX4EYINOPAUEQCPY6TJMYICUS5M7TVXYKWXR3G5ZRAJXY3C37GF", false, false}}
+	
+	fundedCheck := func (adr string) bool {
+		for _, r := range fundedCheckResults {
+			if r.adr == adr {
+				return r.res
+			}
+		}
+		return false
+	}
+
+	w.RecoverAccounts(&wPw, 0, fundedCheck)
+	
+	if len(w.GetAccounts()) != 1 {
+		t.Fatal("invalid account count")
+	}
+
+	for _, r := range fundedCheckResults {
+		if r.exp {
+			if w.FindAccountByPublicKey(r.adr) == nil {
+				t.Fatal("expected account not found")
+			}
+		}
+	}
+
+	a := w.GenerateSep0005Account(&wPw)
+
+	if a.PublicKey() != "GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO" {
+		t.Fatal("expected account not generated after recovery")
+	}
+
+}
+
+func TestRecoverAccounts6(t *testing.T) {
+	wPw := "stellarwalletpw"
+
+	w := createWalletStd1(t, wPw)
+
+	fundedCheckResults := []struct{ adr string
+		res bool
+		exp bool} {
+			{"GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ", true, true},
+			{"GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", true, true},
+			{"GDYF7GIHS2TRGJ5WW4MZ4ELIUIBINRNYPPAWVQBPLAZXC2JRDI4DGAKU", true, true},
+			{"GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD", false, false},
+			{"GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN", false, false},
+			{"GA6RUD4DZ2NEMAQY4VZJ4C6K6VSEYEJITNSLUQKLCFHJ2JOGC5UCGCFQ", false, false},
+			{"GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", false, false},
+			{"GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", false, false},
+			{"GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", false, false},
+			{"GDXOY6HXPIDT2QD352CH7VWX257PHVFR72COWQ74QE3TEV4PK2KCKZX7", false, false},
+			{"SCPA5OX4EYINOPAUEQCPY6TJMYICUS5M7TVXYKWXR3G5ZRAJXY3C37GF", false, false}}
+	
+	fundedCheck := func (adr string) bool {
+		for _, r := range fundedCheckResults {
+			if r.adr == adr {
+				return r.res
+			}
+		}
+		return false
+	}
+
+	w.RecoverAccounts(&wPw, 0, fundedCheck)
+	
+	if len(w.GetAccounts()) != 3 {
+		t.Fatal("invalid account count")
+	}
+
+	for _, r := range fundedCheckResults {
+		if r.exp {
+			if w.FindAccountByPublicKey(r.adr) == nil {
+				t.Fatal("expected account not found")
+			}
+		}
+	}
+
+	a := w.GenerateSep0005Account(&wPw)
+
+	if a.PublicKey() != "GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD" {
+		t.Fatal("expected account not generated after recovery")
+	}
+
+}
+
+func TestRecoverAccounts7(t *testing.T) {
+	wPw := "stellarwalletpw"
+
+	w := createWalletStd1(t, wPw)
+
+	a := w.GenerateSep0005Account(&wPw)
+	
+	fundedCheck := func (adr string) bool {
+		return false
+	}
+
+	w.RecoverAccounts(&wPw, 0, fundedCheck)
+	
+	if len(w.GetAccounts()) != 1 {
+		t.Fatal("invalid account count")
+	}
+
+	a = w.GenerateSep0005Account(&wPw)
+
+	if a.PublicKey() != "GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO" {
+		t.Fatal("expected account not generated after recovery")
+	}
+
 }
 
 
@@ -642,6 +976,11 @@ func TestAddRandomAccount1(t *testing.T) {
 		t.Logf("private key: %s", a.PrivateKey(&pw))
 	}
 
+	accounts := w.GetSeedAccounts()
+
+	if len(accounts) != 23 {
+		t.Fatalf("unexpect account count: %d", len(accounts))
+	}
 }
 
 func TestAddWatchingAccount1(t *testing.T) {
@@ -723,6 +1062,11 @@ func TestAddWatchingAccount1(t *testing.T) {
 		t.Fatalf("unexpected account found")
 	}
 	
+	accounts = w.GetSeedAccounts()
+
+	if len(accounts) != 0 {
+		t.Fatalf("unexpect account count: %d", len(accounts))
+	}
 
 }
 
@@ -742,7 +1086,7 @@ func TestAddAddressBookAccount1(t *testing.T) {
 	if a != nil {
 		t.Fatalf("invalid pubkey accepted")
 	}
-
+	
 	a = w.AddAddressBookAccount(k2)
 
 	if a != nil {
@@ -760,6 +1104,19 @@ func TestAddAddressBookAccount1(t *testing.T) {
 	if a == nil {
 		t.Fatalf("add account failed")
 	}
+
+	if a.SetMemoText("too long       ds            sadasd           ds") == nil {
+		t.Fatalf("SetMemoText accepted invald string")
+	}
+
+	if a.SetMemoText("memo text") != nil {
+		t.Fatalf("SetMemoText failed")
+	}
+
+	if a.GetMemoText() != "memo text" {
+		t.Fatalf("GetMemoText failed")
+	}
+	
 	
 	
 	if a.accountType != AccountTypeAddressBook {
@@ -876,6 +1233,105 @@ func TestAsset1(t *testing.T) {
 	}
 }
 
+func TestTradingPair1(t *testing.T) {
+	w := createWallet3(t, "wallet password")
+
+	a1 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
+	a2 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT")
+	a3 := w.AddAsset("GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", "USDT")
+
+	if a1 == nil || a2 == nil || a3 == nil {
+		t.Fatalf("add asset failed")
+	}
+
+	tp := w.AddTradingPair(nil, nil)
+	if tp != nil {
+		t.Fatalf("add asset: invalid args accepted")
+	}
+
+	tp = w.AddTradingPair(a1, a1)
+	if tp != nil {
+		t.Fatalf("add asset: invalid args accepted")
+	}
+
+	tp1 := w.AddTradingPair(a1, a2)
+	tp2 := w.AddTradingPair(a1, a3)
+	tp3 := w.AddTradingPair(a1, nil)
+	tp4 := w.AddTradingPair(nil, a1)
+	tp5 := w.AddTradingPair(nil, a2)
+
+	if tp1 == nil || tp2 == nil || tp3 == nil || tp4 == nil || tp5 == nil {
+		t.Fatalf("add trading pair failed")
+	}
+
+	if tp1.SetDescription("test description") != nil {
+		t.Fatalf("set descripton failed")
+	}
+
+	if w.DeleteAsset(a1) {
+		t.Fatalf("delete asset: succeeded though used in trading pair")
+	}
+
+	if w.DeleteAsset(a2) {
+		t.Fatalf("delete asset: succeeded though used in trading pair")
+	}
+
+	if w.DeleteAsset(a3) {
+		t.Fatalf("delete asset: succeeded though used in trading pair")
+	}
+
+	if len(a1.GetTradingPairs()) != 4 {
+		t.Fatalf("invalid trading pairs count for a1")
+	}
+
+	if len(a2.GetTradingPairs()) != 2 {
+		t.Fatalf("invalid trading pairs count for a2")
+	}
+
+	if len(a3.GetTradingPairs()) != 1 {
+		t.Fatalf("invalid trading pairs count for a3")
+	}
+	
+	tps := w.GetTradingPairs()
+
+	if len(tps) != 5 {
+		t.Fatalf("invalid trading pairs count")
+	}
+
+	if !w.DeleteTradingPair(tp1) {
+		t.Fatalf("delete trading pair failed")
+	}
+
+	if !w.DeleteTradingPair(tp5) {
+		t.Fatalf("delete trading pair failed")
+	}
+
+	if !w.DeleteAsset(a2) {
+		t.Fatalf("delete asset failed")
+	}
+	
+
+	tps = w.GetTradingPairs()
+
+	if len(tps) != 3 {
+		t.Fatalf("invalid trading pairs count")
+	}
+	
+	if len(a1.GetTradingPairs()) != 3 {
+		t.Fatalf("invalid trading pairs count for a1")
+	}
+
+	if len(a2.GetTradingPairs()) != 0 {
+		t.Fatalf("invalid trading pairs count for a2")
+	}
+
+	if len(a3.GetTradingPairs()) != 1 {
+		t.Fatalf("invalid trading pairs count for a3")
+	}
+
+	
+}
+
 func createWallet1(t *testing.T, wPw string) *Wallet {
 	words := "merge silver adult unusual dilemma air winner safe smile region oil maximum gorilla process link aspect spoon junk crowd employ fury case join one"
 	w := strings.Split(words, " ")
@@ -911,12 +1367,19 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 		t.Fatalf("AddRandomAccount failed")
 	}
 
+	if a.SetMemoText("memo1") != nil {
+		t.Fatalf("SetMemoText failed")
+	}
+
+	a.SetMemoId(1234)
+
 	k = "SBQPDFUGLMWJYEYXFRM5TQX3AX2BR47WKI4FDS7EJQUSEUUVY72MZPJF"
 	a = wallet.AddRandomAccount(&k, &wPw)
 	if a == nil {
 		t.Fatalf("AddRandomAccount failed")
 	}
 	a.SetDescription("Account desc 1")
+	a.SetMemoId(958483)
 	
 	a = wallet.AddWatchingAccount("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS")
 	if a == nil {
@@ -938,16 +1401,34 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 		t.Fatalf("DeleteAsset failed")	
 	}
 
-	as = wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
-	if as == nil {
+	as1 := wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
+	if as1 == nil {
 		t.Fatalf("AddAsset failed")
 	}
 
-	as = wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT")
-	if as == nil {
+	as2 := wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT")
+	if as2 == nil {
 		t.Fatalf("AddAsset failed")
 	}
-	as.SetDescription("asset description")
+	as2.SetDescription("asset description")
+
+	tp1 := wallet.AddTradingPair(as1, as2)
+	if tp1 == nil {
+		t.Fatalf("AddTradingPair failed")
+	}
+	if tp1.SetDescription("trading pair description") != nil {
+		t.Fatalf("trading pair: add description failed")
+	}
+
+	tp2 := wallet.AddTradingPair(as1, nil)
+	if tp2 == nil {
+		t.Fatalf("AddTradingPair failed")
+	}
+
+	tp3 := wallet.AddTradingPair(nil, as1)
+	if tp3 == nil {
+		t.Fatalf("AddTradingPair failed")
+	}
 
 	return wallet
 
@@ -1013,10 +1494,29 @@ func createWallet4(t *testing.T, wPw string) *Wallet {
 			t.Fatalf("GenerateSep0005Account failed")
 		}
 		a.SetDescription(fmt.Sprintf("SEP005 Account %d", i+1))
+		a.SetMemoText(fmt.Sprintf("memo %d", i+1))
+		a.SetMemoId(1000)
 	}
 
 	return wallet
 
+}
+
+// Creates a wallet from mnemonic word list for 256bit entropy with empty menmonic pwassword from
+// https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0005.md
+func createWalletStd1(t *testing.T, wPw string) *Wallet {
+	words := strings.Split("bench hurt jump file august wise shallow faculty impulse spring exact slush thunder author capable act festival slice deposit sauce coconut afford frown better", " ")
+
+
+	mnPw := ""
+
+	w := NewWalletFromMnemonic(&wPw, words, &mnPw) 
+
+	if w == nil {
+		t.Fatal("generate wallet from mnemonic failed")
+	}
+
+	return w
 }
 
 func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Account) {
@@ -1040,6 +1540,17 @@ func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Accoun
 	if a1.sep0005DerivationPath != a2.sep0005DerivationPath {
 		t.Errorf("compareAccount: sep0005DerivationPath mismatch")
 	}
+
+	if a1.GetMemoText() != a2.GetMemoText() {
+		t.Errorf("compareAccount: memo text mismatch")
+	}
+
+	ids1, id1 := a1.GetMemoId()
+	ids2, id2 := a2.GetMemoId()
+
+	if ids1 != ids2 || id1 != id2 {
+		t.Errorf("compareAccount: memo id mismatch")
+	}
 	
 	if verbose {
 		t.Logf("Account: %s", a1.PublicKey())
@@ -1047,6 +1558,8 @@ func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Accoun
 		t.Logf("Account description: %s", a1.GetDescription())
 		t.Logf("Account private key: %s", a1.PrivateKey(&pw1))
 		t.Logf("Account sep0005DerivationPath: %s", a1.sep0005DerivationPath)
+		t.Logf("Account memo text: %s", a1.GetMemoText())
+		t.Logf("Account memo id: %t %d", ids1, id1)
 	}
 }
 
@@ -1063,10 +1576,80 @@ func compareAssets(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Asset) {
 		t.Errorf("compareAsset: assetId mismatch")
 	}
 
+	tps1 := a1.GetTradingPairs()
+	tps2 := a1.GetTradingPairs()
+
+	if len(tps1) != len(tps2) {
+		t.Errorf("compareAsset: linked trading pairs count mismatch")
+	}
+
+	for i, _ := range(tps1) {
+		compareTradingPairs(t, verbose, tps1[i], tps2[i])
+	}
+
 	if verbose {
 		t.Logf("Asset Issuer: %s", a1.Issuer())
 		t.Logf("Asset ID: %s", a1.AssetId())
 		t.Logf("Asset description: %s", a1.GetDescription())
+	}
+
+}
+
+func compareTradingPairs(t *testing.T, verbose bool, tp1, tp2 *TradingPair) {
+	if tp1.GetDescription() != tp2.GetDescription() {
+		t.Errorf("compareTradingPair: description mismatch")
+	}
+
+	issuer1 := ""
+	issuer2 := ""
+	id1 := "XLM"
+	id2 := "XLM"
+
+	if tp1.Asset1() != nil {
+		issuer1 = tp1.Asset1().Issuer()
+		id1 = tp1.Asset1().AssetId()
+	}
+
+	if tp2.Asset1() != nil {
+		issuer2 = tp2.Asset1().Issuer()
+		id2 = tp2.Asset1().AssetId()
+	}
+
+	
+	if issuer1 != issuer2 || id1 != id2 {
+		t.Errorf("compareTradingPair: asset 1 mismatch")
+	}
+
+	issuer1 = ""
+	issuer2 = ""
+	id1 = "XLM"
+	id2 = "XLM"
+
+	if tp1.Asset2() != nil {
+		issuer1 = tp1.Asset2().Issuer()
+		id1 = tp1.Asset2().AssetId()
+	}
+
+	if tp2.Asset2() != nil {
+		issuer2 = tp2.Asset2().Issuer()
+		id2 = tp2.Asset2().AssetId()
+	}
+
+	
+	if issuer1 != issuer2 || id1 != id2 {
+		t.Errorf("compareTradingPair: asset 2 mismatch")
+	}
+
+	if verbose {
+		if tp1.Asset1() != nil {
+			t.Logf("TradingPair Asset1 Issuer: %s", tp1.Asset1().Issuer())
+			t.Logf("TradingPair Asset1 ID: %s", tp1.Asset1().AssetId())
+		}
+		if tp1.Asset2() != nil {
+			t.Logf("TradingPair Asset2 Issuer: %s", tp1.Asset2().Issuer())
+			t.Logf("TradingPair Asset2 ID: %s", tp1.Asset2().AssetId())
+		}
+		t.Logf("TradingPair description: %s", tp1.GetDescription())
 	}
 
 }
@@ -1161,6 +1744,32 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 			t.Fatalf("asset not found") 
 		}
 		compareAssets(t, verbose, pw1, pw2, a1, a2)
+	}
+
+	tps1 := w1.GetTradingPairs()
+	tps2 := w2.GetTradingPairs()
+	l1 = len(tps1)
+	l2 = len(tps2)
+
+	t.Logf("TradingPair count: %d", l1)
+	
+	if l1 != l2 {
+		t.Fatalf("verification of trading pair count failed: %d vs %d", l1, l2)
+	}
+
+	for _, tp1 := range tps1 {
+		var a1, a2 *Asset
+		if tp1.Asset1() != nil {
+			a1 = w2.FindAsset(tp1.Asset1().Issuer(), tp1.Asset1().AssetId())
+		}
+		if tp1.Asset2() != nil {
+			a2 = w2.FindAsset(tp1.Asset2().Issuer(), tp1.Asset2().AssetId())
+		}
+		tp2 := w2.FindTradingPair(a1, a2)
+		if tp2 == nil {
+			t.Fatalf("trading pair not found") 
+		}
+		compareTradingPairs(t, verbose, tp1, tp2)
 	}
 }
 

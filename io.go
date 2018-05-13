@@ -19,16 +19,25 @@ const tagWalletDesc = 1
 const tagWalletMasterSeed = 2
 const tagWalletBip39Seed = 3
 const tagSep0005AccountCount = 4
+
 const tagAccount = 5
 const tagAccountDesc = 6
 const tagAccountType = 7
 const tagAccountPublicKey = 8
 const tagAccountPrivateKey = 9
 const tagAccountSep005DerivationPath = 10
+const tagAccountMemoText = 11
+const tagAccountMemoId = 12
+
 const tagAsset = 20
 const tagAssetDesc = 21
 const tagAssetIssuer = 22
 const tagAssetAssetId = 23
+
+const tagTradingPair = 30
+const tagTradingPairDesc = 31
+const tagTradingPairAsset1 = 32
+const tagTradingPairAsset2 = 33
 
 const tagWalletStart = 100
 const tagWalletEnd = 101
@@ -43,6 +52,25 @@ func writeUint16(w io.Writer, data uint16) {
 
 func readUint16(r io.Reader) (data uint16, err error) {
 	var d uint16
+	
+	err = binary.Read(r, binary.BigEndian, &d)
+
+	if err != nil {
+		err = errors.New("failed to read from buffer: " + err.Error())
+	}
+
+	return d, err
+}
+
+func writeUint64(w io.Writer, data uint64) {
+	err := binary.Write(w, binary.BigEndian, data)
+	if err != nil {
+		panic("failed writing integer to buffer: " + err.Error())
+	}
+}
+
+func readUint64(r io.Reader) (data uint64, err error) {
+	var d uint64
 	
 	err = binary.Read(r, binary.BigEndian, &d)
 
@@ -192,12 +220,20 @@ func (w *Wallet) writeToBuffer() []byte {
 				writeTag(buf, tagAccountSep005DerivationPath)
 				writeString(buf, a.sep0005DerivationPath)
 			}
+
+			if a.memoText != "" {
+				writeTag(buf, tagAccountMemoText)
+				writeString(buf, a.memoText)
+			}
+
+			if a.memoIdSet {
+				writeTag(buf, tagAccountMemoId)
+				writeUint64(buf, a.memoId)
+			}
 		}
 	}
 
-	for i, _ := range w.assets {
-		a := &w.assets[i]
-
+	for _, a := range w.assets {
 		if a.active {
 			writeTag(buf, tagAsset)
 
@@ -209,6 +245,27 @@ func (w *Wallet) writeToBuffer() []byte {
 			
 			writeTag(buf, tagAssetAssetId)
 			writeString(buf, a.assetId)			
+		}
+	}
+
+	for _, tp := range w.tradingPairs {
+		if tp.active {
+			writeTag(buf, tagTradingPair)
+
+			writeTag(buf, tagTradingPairDesc)
+			writeString(buf, tp.desc)
+
+			if tp.asset1 != nil {
+				writeTag(buf, tagTradingPairAsset1)
+				writeString(buf, tp.asset1.issuer)
+				writeString(buf, tp.asset1.assetId)
+			}
+
+			if tp.asset2 != nil {
+				writeTag(buf, tagTradingPairAsset2)
+				writeString(buf, tp.asset2.issuer)
+				writeString(buf, tp.asset2.assetId)
+			}
 		}
 	}
 
@@ -251,6 +308,7 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 	// parse buffer
 	var ac *Account
 	var as *Asset
+	var tp *TradingPair
 
 	r := bytes.NewReader(buf)
 
@@ -320,6 +378,19 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			if err != nil { return err }
 			ac.sep0005DerivationPath = s
 
+		case tagAccountMemoText:
+			if ac == nil { return errors.New("unexpected account tag") }
+			s, err := readString(r)
+			if err != nil { return err }
+			ac.memoText = s
+
+		case tagAccountMemoId:
+			if ac == nil { return errors.New("unexpected account tag") }
+			id, err := readUint64(r)
+			if err != nil { return err }
+			ac.memoId = id
+			ac.memoIdSet = true
+
 		case tagAsset:
 			as = w.newAsset()
 			as.active = true
@@ -342,6 +413,36 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			if err != nil { return err }
 			as.assetId = s
 			
+		case tagTradingPair:
+			tp = w.newTradingPair()
+			tp.active = true
+
+		case tagTradingPairDesc:
+			if tp == nil { return errors.New("unexpected trading pair tag") }
+			s, err := readString(r)
+			if err != nil { return err }
+			tp.desc = s
+
+		case tagTradingPairAsset1:
+			if tp == nil { return errors.New("unexpected trading pair tag") }
+			issuer, err := readString(r)
+			if err != nil { return err }
+			id, err := readString(r)
+			if err != nil { return err }
+			tp.asset1 = w.FindAsset(issuer, id)
+			if tp.asset1 == nil { return errors.New("trading pair asset not found") }
+			tp.asset1.linkTradingPair(tp)
+
+		case tagTradingPairAsset2:
+			if tp == nil { return errors.New("unexpected trading pair tag") }
+			issuer, err := readString(r)
+			if err != nil { return err }
+			id, err := readString(r)
+			if err != nil { return err }
+			tp.asset2 = w.FindAsset(issuer, id)
+			if tp.asset2 == nil { return errors.New("trading pair asset not found") }
+			tp.asset2.linkTradingPair(tp)
+
 		case tagWalletEnd:
 			stop = true
 
