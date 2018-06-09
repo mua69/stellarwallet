@@ -94,7 +94,7 @@ var (
 
 )
 
-// Erases content of given byte buffer.
+// EraseByteBuffer wipes content of given byte buffer.
 func EraseByteBuffer(b []byte) {
 	if b != nil {
 		for i, _ := range b {
@@ -103,12 +103,12 @@ func EraseByteBuffer(b []byte) {
 	}
 }
 
-// Erases content of given string.
+// EraseString wipes content of given string.
 func EraseString(s *string) {
 	EraseByteBuffer([]byte(*s))
 }
 
-// Checks for valid wallet, account or asset description string.
+// CheckDescription checks for valid wallet, account or asset description string.
 // If given description is not valid returned error contains details about failed check.
 func CheckDescription(s string) error {
 	if len(s) > 2000 {
@@ -118,7 +118,7 @@ func CheckDescription(s string) error {
 	return nil
 }
 
-// Checks for valid transaction memo text. 
+// CheckMemoText checks for valid transaction memo text. 
 // If given memo text is not valid returned error contains details about failed check.
 func CheckMemoText(s string) error {
 	if len(s) > 28 {
@@ -128,7 +128,7 @@ func CheckMemoText(s string) error {
 	return nil
 }
 
-// Checks if given string is a valid public account key.
+// CheckPublicKey checks if given string is a valid public account key.
 func CheckPublicKey(s string) bool {
 	_, err := strkey.Decode(strkey.VersionByteAccountID, s)
 
@@ -139,7 +139,7 @@ func CheckPublicKey(s string) bool {
 	return true
 }
 
-// Checks if given string is a valid private account key (seed).
+// CheckPrivateKey checks if given string is a valid private account key (seed).
 func CheckPrivateKey(s *string) bool {
 	_, err := strkey.Decode(strkey.VersionByteSeed, *s)
 
@@ -151,7 +151,7 @@ func CheckPrivateKey(s *string) bool {
 
 }
 
-// Checks if given string is a valid asset id. 
+// CheckAssetId checks if given string is a valid asset id. 
 // If not valid returned error contains details about failed check.
 func CheckAssetId(s string) error {
 	l := len(s)
@@ -169,7 +169,7 @@ func CheckAssetId(s string) error {
 	return nil
 }
 
-// Checks if given string is a valid mnemonic word.
+// CheckMnemonicWord checks if given string is a valid mnemonic word.
 // Can be used by applications to immediately check validity of entered mnemonic words for wallet recovery.
 func CheckMnemonicWord(s string) bool {
 	_, found := bip39.ReverseWordMap[s]
@@ -177,7 +177,7 @@ func CheckMnemonicWord(s string) bool {
 	return found
 }
 
-// Create a new empty wallet, encrypted with given password.
+// NewWallet creates a new empty wallet, encrypted with given password.
 // Each new wallet has an associated encrypted 256 bit entropy, which is the source for the mnemonic words list,
 // i.e. the mnemonic word list is defined when a new wallet is created.
 // This method panics if the build-in self test fails (see method SelfTest()).
@@ -204,7 +204,7 @@ func NewWallet(password *string) *Wallet {
 	return wallet
 }
 
-// Creates a new wallet from a given mnemonic word list and mnemonic password and encrypts it with given wallet password.
+// NewWalletFromMnemonic creates a new wallet from a given mnemonic word list and mnemonic password and encrypts it with given wallet password.
 // This method is used to recover a wallet from a mnemonic word list and password.
 // If the mnemonic word list is invalid, nil will be returned.
 // An invalid mnemonic password is not detected so that it cannot be reported to the user. If a wrong mnemonic password is provided,
@@ -238,18 +238,17 @@ func NewWalletFromMnemonic(walletPassword *string, mnemonic []string, mnemonicPa
 }
 
 
-// This function can be used to recover accounts after a wallet was recovered from
+// RecoverAccounts can be used to recover accounts after a wallet was recovered from
 // a mnemonic word list. It will generate accounts and check if they are funded
 // via provided function fundedCheck(). fundedCheck() must be a functions that
 // checks on the Stellar network if the given account is funded and returns true in case.
 // maxGap defines the maximum number of unfunded accounts being accepted until the search stops.
- 
 func (w *Wallet) RecoverAccounts(walletPassword *string, maxGap uint16, fundedCheck func (adr string) bool) {
 
 	var lastFound = w.sep0005AccountCount
 
 	for {
-		a := w.GenerateSep0005Account(walletPassword)
+		a := w.GenerateAccount(walletPassword)
 		if a == nil {
 			// can happen if invalid wallet password is provided
 			return
@@ -269,7 +268,7 @@ func (w *Wallet) RecoverAccounts(walletPassword *string, maxGap uint16, fundedCh
 	w.sep0005AccountCount = lastFound
 }
 
-// Creates a new wallet from an exported binary serialization of the wallet content.
+// ImportBinary creates a new wallet from an exported binary serialization of the wallet content.
 // This method can be used to restore a wallet from a permanent storage location.
 // This method panics if the build-in self test fails (see method SelfTest()).
 func ImportBinary(buf []byte) (w *Wallet, err error) {
@@ -288,7 +287,7 @@ func ImportBinary(buf []byte) (w *Wallet, err error) {
 	return w, nil
 }
 
-// Creates a new wallet from an exported ascii (base 64) serialization of the wallet content.
+// ImportBase64 creates a new wallet from an exported ascii (base 64) serialization of the wallet content.
 // This method can be used to restore a wallet from a permanent storage location.
 // This method panics if the build-in self test fails (see method SelfTest()).
 func ImportBase64(data string) (w *Wallet, err error) {
@@ -313,12 +312,12 @@ func ImportBase64(data string) (w *Wallet, err error) {
 	return w, nil
 }
 
-// Creates a binary serialization of the wallet content, e.g. for permanent storage of the wallet on disk.
+// ExportBinary creates a binary serialization of the wallet content, e.g. for permanent storage of the wallet on disk.
 func (w *Wallet)ExportBinary() []byte {
 	return w.writeToBufferCompressed()
 }
 
-// Creates an ascii (base 64) serialization of the wallet content, e.g. for permanent storage of the wallet on disk.
+// ExportBase64 creates an ascii (base 64) serialization of the wallet content, e.g. for permanent storage of the wallet on disk.
 func (w *Wallet)ExportBase64() string {
 	buf := w.writeToBufferCompressed()
 
@@ -339,12 +338,12 @@ func (w *Wallet)clearAccounts() {
 	}
 }
 
-// Returns optional wallet description.
-func (w *Wallet)GetDescription() string {
+// Description returns the optional wallet description.
+func (w *Wallet)Description() string {
 	return w.desc
 }
 
-// Sets wallet description. Error is returned if given string does not pass description check.
+// SetDescription sets wallet description. Error is returned if given string does not pass the description check.
 func (w *Wallet)SetDescription(desc string) error {
 	err := CheckDescription(desc)
 	if err != nil {
@@ -505,9 +504,9 @@ func (w *Wallet)getBip39Mnemonic(key []byte) (words []string) {
 	return
 }
 
-// Returns mnemonic word list (24 words) associated with the current wallet.
+// Bip39Mnemonic returns mnemonic word list (24 words) associated with the current wallet.
 // After creating a new wallet this word list should be presented to the user. 
-func (w *Wallet)GetBip39Mnemonic(walletPassword *string) (words []string) {
+func (w *Wallet)Bip39Mnemonic(walletPassword *string) (words []string) {
 
 	key := deriveAesKey(walletPassword)
 
@@ -541,7 +540,7 @@ func (w *Wallet)checkPassword(walletPassword *string) []byte {
 	return nil
 }
 
-// Checks if given wallet password is valid.
+// CheckPassword checks if given wallet password is valid.
 func (w *Wallet)CheckPassword(walletPassword *string) bool {
 	key := w.checkPassword(walletPassword)
 
@@ -592,10 +591,10 @@ func (w *Wallet)generateBip39Seed(key []byte, words []string , mnemonicPassword 
 	return true
 }
 
-// Generate the seed used for key derivation (generated accounts). This
-// method mus be called before the first call to GenerateSep0005Account().
+// GenerateBip39Seed generates the seed used for key derivation (generated accounts). This
+// method mus be called before the first call to GenerateAccount().
 // It uses the mnemonic word list, 
-// which is internally derived from the master seed (same as returned by GetBip39Mnemonic()),
+// which is internally derived from the master seed (same as returned by Bip39Mnemonic()),
 // and combines it with the given mnemonic password. 
 // The wallet password is required for decrypting and master seed and encrypting the generated
 // key derivation seed (BIP39 seed). 
@@ -617,7 +616,7 @@ func (w *Wallet)GenerateBip39Seed(walletPassword *string, mnemonicPassword *stri
 	return w.generateBip39Seed(key, words, mnemonicPassword)
 }
 
-// Changes the wallet password. 
+// ChangePassword changes the wallet password. 
 // false is returned only if the given wallet password is invalid.
 func (w *Wallet)ChangePassword(password, newPassword *string) bool {
 	key :=  w.checkPassword(password)
@@ -685,11 +684,11 @@ func (w *Wallet)newAccount() *Account {
 	return a
 }
 
-// Generates a new account based on the stored BIP39 seed. The wallet password
+// GenerateAccount generates a new account according to SEP-0005. The wallet password
 // is required to decrypt the BIP39 seed.
 // Before this method can be used, method GenerateBip39Seed() must have been called before once.
 // nil is returned if GenerateBip39Seed() was not called before or the wallet password is not valid.
-func (w *Wallet)GenerateSep0005Account(walletPassword *string) *Account {
+func (w *Wallet)GenerateAccount(walletPassword *string) *Account {
 	if w.bip39Seed == nil {
 		return nil
 	}
@@ -779,7 +778,7 @@ func derivePublicKey( seed []byte ) []byte {
 	return pub
 }
 
-// Adds a new account with given private key (seed) and returns a new Account object.
+// AddRandomAccount adds a new account with given private key (seed) and returns a new Account object.
 // The private key is stored encrypted. 
 // Application implementors should make the user aware that this type of account cannot be 
 // recovered with the mnemonic word list and password.
@@ -817,7 +816,7 @@ func (w *Wallet)AddRandomAccount(seed *string, walletPassword *string) *Account 
 	return a
 }
 
-// Adds a watching account and return a new Account object for it.
+// AddWatchingAccount adds a watching account and return a new Account object for it.
 // Watching accounts just store the public account key.
 // Watching accounts are treated as "own" accounts - in contrast to address book accounts.
 // nil is returned if the given public key string is not valid.
@@ -843,7 +842,7 @@ func (w *Wallet)AddWatchingAccount(pubkey string) *Account {
 	return a
 }
 
-// Adds an address book account and return a new Account object for it.
+// AddAddressBookAccount adds an address book account and return a new Account object for it.
 // Address book accounts just store the public account key.
 // Address book accounts are treated as "foreign" accounts - in contrast to watching accounts.
 // nil is returned if the given public key string is not valid.
@@ -869,7 +868,7 @@ func (w *Wallet)AddAddressBookAccount(pubkey string) *Account {
 	return a
 }
 
-// Deletes given account. false is returned if given account does not belong to current wallet object.
+// DeleteAccount deletes given account. false is returned if given account does not belong to current wallet object.
 func (w *Wallet)DeleteAccount(acc *Account) bool {
 	if acc.wallet == w {
 		acc.active = false
@@ -879,7 +878,7 @@ func (w *Wallet)DeleteAccount(acc *Account) bool {
 	return false
 }
 
-// Returns account object for given public account key.
+// FindAccountByPublicKey returns account object for given public account key.
 // If not matching account is found, nil is returned.
 func (w *Wallet)FindAccountByPublicKey(pubkey string) *Account {
 
@@ -893,7 +892,7 @@ func (w *Wallet)FindAccountByPublicKey(pubkey string) *Account {
 }
 
 
-// Returns first account matching given description string.
+// FindAccountByDescription returns first account matching given description string.
 // Matching is performed case insensitive on sub string level..
 // If not matching account is found, nil is returned.
 func (w *Wallet)FindAccountByDescription(desc string) *Account {
@@ -910,9 +909,9 @@ func (w *Wallet)FindAccountByDescription(desc string) *Account {
 	return nil
 }
 
-// Returns a slice containing all "own" accounts if current wallet, i.e.
+// Accounts returns a slice containing all "own" accounts if current wallet, i.e.
 // all but address book accounts.
-func (w *Wallet)GetAccounts() []*Account {
+func (w *Wallet)Accounts() []*Account {
 	accounts := make([]*Account, 0, len(w.accounts))
 
 	for i, _ := range w.accounts {
@@ -924,9 +923,9 @@ func (w *Wallet)GetAccounts() []*Account {
 	return accounts
 }
 
-// Returns a slice containing all accounts with a private key,
+// SeedAccounts returns a slice containing all accounts with a private key,
 //  i.e. generated and random accounts.
-func (w *Wallet)GetSeedAccounts() []*Account {
+func (w *Wallet)SeedAccounts() []*Account {
 	accounts := make([]*Account, 0, len(w.accounts))
 
 	for i, _ := range w.accounts {
@@ -938,8 +937,8 @@ func (w *Wallet)GetSeedAccounts() []*Account {
 	return accounts
 }
 
-// Returns a slice containing all address book accounts.
-func (w *Wallet)GetAddressBook() []*Account {
+// AddressBook returns a slice containing all address book accounts.
+func (w *Wallet)AddressBook() []*Account {
 	accounts := make([]*Account, 0, len(w.accounts))
 
 	for i, _ := range w.accounts {
@@ -951,8 +950,8 @@ func (w *Wallet)GetAddressBook() []*Account {
 	return accounts
 }
 
-// Returns a slice containing all assets of current wallet.
-func (w *Wallet)GetAssets() []*Asset {
+// Assets returns a slice containing all assets of current wallet.
+func (w *Wallet)Assets() []*Asset {
 	assets := make([]*Asset, 0, len(w.assets))
 
 	for _, a := range w.assets {
@@ -964,7 +963,7 @@ func (w *Wallet)GetAssets() []*Asset {
 	return assets
 }
 
-// Returns asset object for given issues and asset id.
+// FindAsset returns asset object for given issues and asset id.
 // nil is return if no matching asset is found.
 func (w *Wallet)FindAsset(issuer, assetId string) *Asset {
 	for _, a := range w.assets {
@@ -976,7 +975,7 @@ func (w *Wallet)FindAsset(issuer, assetId string) *Asset {
 	return nil
 }
 
-// Returns a slice containing all assets that match the given issuer string.
+// FindAssetsByIssuer returns a slice containing all assets that match the given issuer string.
 func (w *Wallet)FindAssetsByIssuer(issuer string) []*Asset {
 	assets := make([]*Asset, 0, len(w.assets))
 
@@ -1006,7 +1005,7 @@ func (w *Wallet)newAsset() *Asset {
 	return a
 }
 
-// Creates a new asset and returns a Asset object for it.
+// AddAsset creates a new asset and returns a Asset object for it.
 // nil is returned if the given issues string is not a valid public account key or
 // if the given assetId is not valid.
 func (w *Wallet)AddAsset(issuer, assetId string) *Asset {
@@ -1034,7 +1033,7 @@ func (w *Wallet)AddAsset(issuer, assetId string) *Asset {
 	return a
 }	
 
-// Deletes given asset from wallet.
+// DeleteAsset deletes given asset from wallet.
 // Returns true on success. 	
 func (w *Wallet)DeleteAsset(a *Asset) bool {
 	if a.wallet != w {
@@ -1068,7 +1067,7 @@ func (w *Wallet)newTradingPair() *TradingPair {
 	return tp
 }
 
-// Returns trading pair for given assets. Return nil of no trading pair is defined for given assets.
+// FindTradingPair returns trading pair for given assets. Return nil of no trading pair is defined for given assets.
 func (w *Wallet)FindTradingPair(asset1, asset2 *Asset) *TradingPair {
 	for _, tp := range w.tradingPairs {
 		if tp.asset1 == asset1 && tp.asset2 == asset2 {
@@ -1079,8 +1078,8 @@ func (w *Wallet)FindTradingPair(asset1, asset2 *Asset) *TradingPair {
 	return nil
 } 
 
-// Adds a new trading pair to the wallet. If a trading pair for the given assets is already defined, the existing pair is returned.
-// The native Lumen is represented bya nil asset. 
+// AddTradingPair adds a new trading pair to the wallet. If a trading pair for the given assets is already defined, the existing pair is returned.
+// The native Lumen is represented by a nil asset. 
 // For following error conditions nil is returned: assets do not belong to current wallet, assets as identical 
 func (w *Wallet)AddTradingPair(asset1, asset2 *Asset) *TradingPair {
 	if asset1 != nil && asset1.wallet != w {
@@ -1118,6 +1117,8 @@ func (w *Wallet)AddTradingPair(asset1, asset2 *Asset) *TradingPair {
 	return tp
 }
 
+// DeleteTradingPair deletes given tarding pair from the wallet.
+// On success true is returned.
 func (w *Wallet)DeleteTradingPair(tp *TradingPair) bool {
 	if tp.wallet != w {
 		return false
@@ -1136,7 +1137,8 @@ func (w *Wallet)DeleteTradingPair(tp *TradingPair) bool {
 	return true
 }
 
-func (w *Wallet)GetTradingPairs() []*TradingPair {
+// TradingPairs returns a slice with all trading pairs of the wallet.
+func (w *Wallet)TradingPairs() []*TradingPair {
 	tps := make([]*TradingPair, 0, len(w.tradingPairs))
 
 	for _, tp := range w.tradingPairs {
@@ -1160,12 +1162,12 @@ func (a *Account)init(wallet *Wallet) {
 	a.memoIdSet = false
 }
 
-// Returns account type.
+// Type returns account type.
 func (a *Account)Type() uint16 {
 	return a.accountType
 }
 
-// Checks if current account is an own account, i.e. of type generated, random or watching.
+// IsOwnAccount checks if current account is an own account, i.e. of type generated, random or watching.
 func (a *Account)IsOwnAccount() bool {
 	switch a.accountType {
 	case AccountTypeSEP0005:
@@ -1179,7 +1181,7 @@ func (a *Account)IsOwnAccount() bool {
 	return false
 }
 
-// Checks if current account is an address book account..
+// IsAddressBookAccount checks if current account is an address book account..
 func (a *Account)IsAddressBookAccount() bool {
 	if a.accountType == AccountTypeAddressBook {
 		return true
@@ -1188,7 +1190,7 @@ func (a *Account)IsAddressBookAccount() bool {
 	return false
 }
 
-// Checks true if current account holds a private key.
+// HasPrivateKey checks true if current account holds a private key.
 func (a *Account)HasPrivateKey() bool {
 	switch a.accountType {
 	case AccountTypeSEP0005:
@@ -1203,12 +1205,12 @@ func (a *Account)HasPrivateKey() bool {
 
 
 
-// Returns description of account. Empty string is returned if no description is defined.
-func (a *Account)GetDescription() string {
+// Description returns description of account. Empty string is returned if no description is defined.
+func (a *Account)Description() string {
 	return a.desc
 }
 
-// Sets description on account. If give description string is not valid a descriptive error is returned.
+// SetDescription sets description on account. If give description string is not valid a descriptive error is returned.
 func (a *Account)SetDescription(desc string) error {
 	err := CheckDescription(desc)
 	if err != nil {
@@ -1220,12 +1222,12 @@ func (a *Account)SetDescription(desc string) error {
 	return nil
 }
 
-// Returns memo text of account. Empty string is returned if no memo text is defined.
-func (a *Account)GetMemoText() string {
+// MemoText returns the optional memo text of account. Empty string is returned if no memo text is defined.
+func (a *Account)MemoText() string {
 	return a.memoText
 }
 
-// Sets memo text on account. If given memo text string is not valid a descriptive error is returned.
+// SetMemoText sets memo text on account. If given memo text string is not valid a descriptive error is returned.
 func (a *Account)SetMemoText(memo string) error {
 	err := CheckMemoText(memo)
 	if err != nil {
@@ -1237,8 +1239,8 @@ func (a *Account)SetMemoText(memo string) error {
 	return nil
 }
 
-// Returns memo id of account. If no memo id is defined for current account, the boolean return value is false.
-func (a *Account)GetMemoId() (bool, uint64) {
+// MemoId returns memo id of account. If no memo id is defined for current account, the boolean return value is false.
+func (a *Account)MemoId() (bool, uint64) {
 	if a.memoIdSet {
 		return true, a.memoId
 	}
@@ -1246,19 +1248,19 @@ func (a *Account)GetMemoId() (bool, uint64) {
 	return false, 0
 }
 
-// Sets memo id on account.
+// SetMemoId sets memo id on account.
 func (a *Account)SetMemoId(memo uint64) {
 	a.memoId = memo
 	a.memoIdSet = true
 }
 
-// Clears memo id from account.
+// ClearMemoId clears memo id from account.
 func (a *Account)ClearMemoId() {
 	a.memoId = 0
 	a.memoIdSet = false
 }
 
-// Returns public key of account.
+// PublicKey returns public key of account.
 func (a *Account)PublicKey() string {
 	if !a.active {
 		panic("account not active")
@@ -1266,7 +1268,7 @@ func (a *Account)PublicKey() string {
 	return a.publicKey
 }
 
-// Returns private key of account.
+// PrivateKey returns private key of account.
 // Emptry string is returned if wallet password is not valid or current account does not hold a private key.
 func (a *Account)PrivateKey(walletPassword *string) string {
 	wkey := a.wallet.checkPassword(walletPassword)
@@ -1337,7 +1339,8 @@ func (a *Asset)unlinkTradingPair(tp *TradingPair) {
 	}
 }
 
-func (a *Asset)GetTradingPairs() []*TradingPair {
+// TradingPairs returns slice with all trading pairs the refer to the current asset.
+func (a *Asset)TradingPairs() []*TradingPair {
 	tps := make([]*TradingPair, 0, a.tradingPairLink.Len())
 
 	for itr := a.tradingPairLink.Front(); itr != nil; itr = itr.Next() {
@@ -1347,12 +1350,12 @@ func (a *Asset)GetTradingPairs() []*TradingPair {
 	return tps
 }
 
-// Returns description of asset. Empty string is returned if no description is defined.
-func (a *Asset)GetDescription() string {
+// Description returns description of asset. Empty string is returned if no description is defined.
+func (a *Asset)Description() string {
 	return a.desc
 }
 
-// Sets description on asset. If give description string is not valid a descriptive error is returned, else nil.
+// SetDescription sets description on asset. If give description string is not valid a descriptive error is returned, else nil.
 func (a *Asset)SetDescription(desc string) error {
 	err := CheckDescription(desc)
 	if err != nil {
@@ -1364,10 +1367,12 @@ func (a *Asset)SetDescription(desc string) error {
 	return nil
 }
 
+// Returns issuer of asset.
 func (a *Asset)Issuer() string {
 	return a.issuer
 }
 
+// Returns asset ID (aka code). 
 func (a *Asset)AssetId() string {
 	return a.assetId
 }
@@ -1379,12 +1384,12 @@ func (tp *TradingPair)init(wallet *Wallet) {
 	tp.asset2 = nil
 }
 
-// Returns description of trading pair. Empty string is returned if no description is defined.
-func (tp *TradingPair)GetDescription() string {
+// Description returns description of trading pair. Empty string is returned if no description is defined.
+func (tp *TradingPair)Description() string {
 	return tp.desc
 }
 
-// Sets description on tarding pair. If give description string is not valid a descriptive error is returned, else nil.
+// SetDescription sets description on tarding pair. If give description string is not valid a descriptive error is returned, else nil.
 func (tp *TradingPair)SetDescription(desc string) error {
 	err := CheckDescription(desc)
 	if err != nil {
@@ -1396,18 +1401,18 @@ func (tp *TradingPair)SetDescription(desc string) error {
 	return nil
 }
 
-// Returns first asset of trading pair. nil denotes native Lumen.
+// Asset1 returns first asset of trading pair. nil denotes native Lumen.
 func (tp *TradingPair)Asset1() *Asset {
 	return tp.asset1
 }
 
-// Returns second asset of trading pair. nil denotes native Lumen.
+// Asset2 returns second asset of trading pair. nil denotes native Lumen.
 func (tp *TradingPair)Asset2() *Asset {
 	return tp.asset2
 }
 
 
-// Performs self test to ensure that hardware performs correct calculations.
+// SelfTest performs self test to ensure that hardware performs correct calculations.
 // Failures are indicated by a non nil error. 
 // All wallet creation methods run this self test as well and will panic if it fails.
 // This function should be called by an application first in order to gracefully handle 
@@ -1450,7 +1455,7 @@ func SelfTest() error {
 		"GBOSMFQYKWFDHJWCMCZSMGUMWCZOM4KFMXXS64INDHVCJ2A2JAABCYRR", "SDXDYPDNRMGOF25AWYYKPHFAD3M54IT7LCLG7RWTGR3TS32A4HTUXNOS"}
 
 	for i := 0; i < len(expectedKeys)/2; i++ {
-		a := wallet.GenerateSep0005Account(&wPw)
+		a := wallet.GenerateAccount(&wPw)
 
 		if a.PublicKey() != expectedKeys[2*i] {
 			g_selfTestStatus = errors.New(errPrefix+"invalid public key generated")
