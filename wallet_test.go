@@ -177,7 +177,7 @@ func TestMnemonic1(t *testing.T) {
 	pw := "pwTest1!%$ 123 PW"
 	w := NewWallet(&pw)
 
-	words := w.GetBip39Mnemonic(&pw)
+	words := w.Bip39Mnemonic(&pw)
 
 	if words == nil {
 		t.Logf("new mnemonic failed")
@@ -248,8 +248,8 @@ func TestChangePassword2(t *testing.T) {
 
 	compareWallets(t, true, pw1, pw2, w1, w2)
 
-	if w2.GenerateSep0005Account(&pw2) == nil {
-		t.Fatalf("GenerateSep0005Account failed")
+	if w2.GenerateAccount(&pw2) == nil {
+		t.Fatalf("GenerateAccount failed")
 	}
 
 }
@@ -298,7 +298,7 @@ func TestGenBip39Seed1(t *testing.T) {
 		t.FailNow()
 	}
 
-	wordsFromSeed := wallet.GetBip39Mnemonic(&wPw)
+	wordsFromSeed := wallet.Bip39Mnemonic(&wPw)
 
 	if wordsFromSeed == nil {
 		t.Logf("retrieving mnemonic word list from seed failed")
@@ -357,7 +357,7 @@ func TestGenBip39Seed2(t *testing.T) {
 		t.FailNow()
 	}
 
-	wordsFromSeed := wallet.GetBip39Mnemonic(&wPw)
+	wordsFromSeed := wallet.Bip39Mnemonic(&wPw)
 
 	if wordsFromSeed == nil {
 		t.Logf("retrieving mnemonic word list from seed failed")
@@ -400,7 +400,7 @@ func TestGenSep0005Account1(t *testing.T) {
 
 
 	for i := 0; i < len(expectedKeys)/2; i++ {
-		a := wallet.GenerateSep0005Account(&wPw)
+		a := wallet.GenerateAccount(&wPw)
 
 		if !a.active {
 			t.Error("account not active")
@@ -421,7 +421,7 @@ func TestGenSep0005Account1(t *testing.T) {
 		t.Logf("private key: %s", a.PrivateKey(&wPw))
 	}
 
-	wordsFromSeed := wallet.GetBip39Mnemonic(&wPw)
+	wordsFromSeed := wallet.Bip39Mnemonic(&wPw)
 
 	if wordsFromSeed == nil {
 		t.Logf("retrieving mnemonic word list from seed failed")
@@ -470,7 +470,7 @@ func TestGenSep0005Account2(t *testing.T) {
 		"GDXOY6HXPIDT2QD352CH7VWX257PHVFR72COWQ74QE3TEV4PK2KCKZX7", "SCPA5OX4EYINOPAUEQCPY6TJMYICUS5M7TVXYKWXR3G5ZRAJXY3C37GF"}
 
 	for i := 0; i < 10; i++ {
-		a := wallet.GenerateSep0005Account(&wPw)
+		a := wallet.GenerateAccount(&wPw)
 
 		if !a.active {
 			t.Error("account not active")
@@ -491,7 +491,7 @@ func TestGenSep0005Account2(t *testing.T) {
 		t.Logf("private key: %s", a.PrivateKey(&wPw))
 	}
 
-	wordsFromSeed := wallet.GetBip39Mnemonic(&wPw)
+	wordsFromSeed := wallet.Bip39Mnemonic(&wPw)
 
 	if wordsFromSeed == nil {
 		t.Logf("retrieving mnemonic word list from seed failed")
@@ -541,7 +541,7 @@ func TestGenSep0005Account3(t *testing.T) {
 		"GBOSMFQYKWFDHJWCMCZSMGUMWCZOM4KFMXXS64INDHVCJ2A2JAABCYRR", "SDXDYPDNRMGOF25AWYYKPHFAD3M54IT7LCLG7RWTGR3TS32A4HTUXNOS"}
 
 	for i := 0; i < len(expectedKeys)/2; i++ {
-		a := wallet.GenerateSep0005Account(&wPw)
+		a := wallet.GenerateAccount(&wPw)
 
 		if !a.active {
 			t.Error("account not active")
@@ -562,7 +562,7 @@ func TestGenSep0005Account3(t *testing.T) {
 		t.Logf("private key: %s", a.PrivateKey(&wPw))
 	}
 
-	wordsFromSeed := wallet.GetBip39Mnemonic(&wPw)
+	wordsFromSeed := wallet.Bip39Mnemonic(&wPw)
 
 	if wordsFromSeed == nil {
 		t.Logf("retrieving mnemonic word list from seed failed")
@@ -575,7 +575,7 @@ func TestGenSep0005Account3(t *testing.T) {
 		t.Logf("word lists do not match")
 	}
 
-	accounts := wallet.GetSeedAccounts()
+	accounts := wallet.SeedAccounts()
 
 	if len(accounts) != 10 {
 		t.Fatalf("unexpect account count: %d", len(accounts))
@@ -613,11 +613,11 @@ func TestRecoverAccounts1(t *testing.T) {
 
 	w.RecoverAccounts(&wPw, 1, fundedCheck)
 
-	if len(w.GetAccounts()) != 0 {
+	if len(w.Accounts()) != 0 {
 		t.Fatal("invalid account count")
 	}
 
-	a := w.GenerateSep0005Account(&wPw)
+	a := w.GenerateAccount(&wPw)
 
 	if a.PublicKey() != "GC3MMSXBWHL6CPOAVERSJITX7BH76YU252WGLUOM5CJX3E7UCYZBTPJQ" {
 		t.Fatal("expected account not generated after recovery")
@@ -659,7 +659,7 @@ func TestRecoverAccounts2(t *testing.T) {
 
 	w.RecoverAccounts(&wPw, 1, fundedCheck)
 	
-	if len(w.GetAccounts()) != 1 {
+	if len(w.Accounts()) != 1 {
 		t.Fatal("invalid account count")
 	}
 
@@ -671,7 +671,7 @@ func TestRecoverAccounts2(t *testing.T) {
 		}
 	}
 
-	a := w.GenerateSep0005Account(&wPw)
+	a := w.GenerateAccount(&wPw)
 
 	if a.PublicKey() != "GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO" {
 		t.Fatal("expected account not generated after recovery")
@@ -710,7 +710,7 @@ func TestRecoverAccounts3(t *testing.T) {
 
 	w.RecoverAccounts(&wPw, 1, fundedCheck)
 	
-	if len(w.GetAccounts()) != 2 {
+	if len(w.Accounts()) != 2 {
 		t.Fatal("invalid account count")
 	}
 
@@ -722,7 +722,7 @@ func TestRecoverAccounts3(t *testing.T) {
 		}
 	}
 
-	a := w.GenerateSep0005Account(&wPw)
+	a := w.GenerateAccount(&wPw)
 
 	if a.PublicKey() != "GAXG3LWEXWCAWUABRO6SMAEUKJXLB5BBX6J2KMHFRIWKAMDJKCFGS3NN" {
 		t.Fatal("expected account not generated after recovery")
@@ -761,7 +761,7 @@ func TestRecoverAccounts4(t *testing.T) {
 
 	w.RecoverAccounts(&wPw, 2, fundedCheck)
 	
-	if len(w.GetAccounts()) != 3 {
+	if len(w.Accounts()) != 3 {
 		t.Fatal("invalid account count")
 	}
 
@@ -773,7 +773,7 @@ func TestRecoverAccounts4(t *testing.T) {
 		}
 	}
 
-	a := w.GenerateSep0005Account(&wPw)
+	a := w.GenerateAccount(&wPw)
 
 	if a.PublicKey() != "GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4" {
 		t.Fatal("expected account not generated after recovery")
@@ -814,7 +814,7 @@ func TestRecoverAccounts5(t *testing.T) {
 
 	w.RecoverAccounts(&wPw, 0, fundedCheck)
 	
-	if len(w.GetAccounts()) != 1 {
+	if len(w.Accounts()) != 1 {
 		t.Fatal("invalid account count")
 	}
 
@@ -826,7 +826,7 @@ func TestRecoverAccounts5(t *testing.T) {
 		}
 	}
 
-	a := w.GenerateSep0005Account(&wPw)
+	a := w.GenerateAccount(&wPw)
 
 	if a.PublicKey() != "GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO" {
 		t.Fatal("expected account not generated after recovery")
@@ -865,7 +865,7 @@ func TestRecoverAccounts6(t *testing.T) {
 
 	w.RecoverAccounts(&wPw, 0, fundedCheck)
 	
-	if len(w.GetAccounts()) != 3 {
+	if len(w.Accounts()) != 3 {
 		t.Fatal("invalid account count")
 	}
 
@@ -877,7 +877,7 @@ func TestRecoverAccounts6(t *testing.T) {
 		}
 	}
 
-	a := w.GenerateSep0005Account(&wPw)
+	a := w.GenerateAccount(&wPw)
 
 	if a.PublicKey() != "GAFLH7DGM3VXFVUID7JUKSGOYG52ZRAQPZHQASVCEQERYC5I4PPJUWBD" {
 		t.Fatal("expected account not generated after recovery")
@@ -890,7 +890,7 @@ func TestRecoverAccounts7(t *testing.T) {
 
 	w := createWalletStd1(t, wPw)
 
-	a := w.GenerateSep0005Account(&wPw)
+	a := w.GenerateAccount(&wPw)
 	
 	fundedCheck := func (adr string) bool {
 		return false
@@ -898,11 +898,11 @@ func TestRecoverAccounts7(t *testing.T) {
 
 	w.RecoverAccounts(&wPw, 0, fundedCheck)
 	
-	if len(w.GetAccounts()) != 1 {
+	if len(w.Accounts()) != 1 {
 		t.Fatal("invalid account count")
 	}
 
-	a = w.GenerateSep0005Account(&wPw)
+	a = w.GenerateAccount(&wPw)
 
 	if a.PublicKey() != "GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO" {
 		t.Fatal("expected account not generated after recovery")
@@ -976,7 +976,7 @@ func TestAddRandomAccount1(t *testing.T) {
 		t.Logf("private key: %s", a.PrivateKey(&pw))
 	}
 
-	accounts := w.GetSeedAccounts()
+	accounts := w.SeedAccounts()
 
 	if len(accounts) != 23 {
 		t.Fatalf("unexpect account count: %d", len(accounts))
@@ -1034,7 +1034,7 @@ func TestAddWatchingAccount1(t *testing.T) {
 		t.Fatalf("add account twice succeeded")
 	}
 
-	accounts := w.GetAccounts()
+	accounts := w.Accounts()
 	
 	if len(accounts) != 1 {
 		t.Fatalf("unexpected account count")
@@ -1062,7 +1062,7 @@ func TestAddWatchingAccount1(t *testing.T) {
 		t.Fatalf("unexpected account found")
 	}
 	
-	accounts = w.GetSeedAccounts()
+	accounts = w.SeedAccounts()
 
 	if len(accounts) != 0 {
 		t.Fatalf("unexpect account count: %d", len(accounts))
@@ -1113,8 +1113,8 @@ func TestAddAddressBookAccount1(t *testing.T) {
 		t.Fatalf("SetMemoText failed")
 	}
 
-	if a.GetMemoText() != "memo text" {
-		t.Fatalf("GetMemoText failed")
+	if a.MemoText() != "memo text" {
+		t.Fatalf("MemoText failed")
 	}
 	
 	
@@ -1132,7 +1132,7 @@ func TestAddAddressBookAccount1(t *testing.T) {
 		t.Fatalf("add account twice succeeded")
 	}
 
-	accounts := w.GetAddressBook()
+	accounts := w.AddressBook()
 	
 	if len(accounts) != 1 {
 		t.Fatalf("unexpected account count")
@@ -1152,7 +1152,7 @@ func TestAddAddressBookAccount1(t *testing.T) {
 		t.Fatalf("remove account faild")
 	}
 
-	accounts = w.GetAddressBook()
+	accounts = w.AddressBook()
 	
 	if len(accounts) != 0 {
 		t.Fatalf("unexpected account count")
@@ -1206,7 +1206,7 @@ func TestAsset1(t *testing.T) {
 		t.Fatal("delete asset failed")
 	}
 
-	assets := w.GetAssets()
+	assets := w.Assets()
 	if len(assets) != 2 {
 		t.Fatal("unexpected asset count")
 	}
@@ -1222,7 +1222,7 @@ func TestAsset1(t *testing.T) {
 		t.Fatal("asset not found")
 	}
 
-	if a.GetDescription() != "asset description" {
+	if a.Description() != "asset description" {
 		t.Fatal("description mismatch")
 	}
 	
@@ -1280,19 +1280,19 @@ func TestTradingPair1(t *testing.T) {
 		t.Fatalf("delete asset: succeeded though used in trading pair")
 	}
 
-	if len(a1.GetTradingPairs()) != 4 {
+	if len(a1.TradingPairs()) != 4 {
 		t.Fatalf("invalid trading pairs count for a1")
 	}
 
-	if len(a2.GetTradingPairs()) != 2 {
+	if len(a2.TradingPairs()) != 2 {
 		t.Fatalf("invalid trading pairs count for a2")
 	}
 
-	if len(a3.GetTradingPairs()) != 1 {
+	if len(a3.TradingPairs()) != 1 {
 		t.Fatalf("invalid trading pairs count for a3")
 	}
 	
-	tps := w.GetTradingPairs()
+	tps := w.TradingPairs()
 
 	if len(tps) != 5 {
 		t.Fatalf("invalid trading pairs count")
@@ -1311,21 +1311,21 @@ func TestTradingPair1(t *testing.T) {
 	}
 	
 
-	tps = w.GetTradingPairs()
+	tps = w.TradingPairs()
 
 	if len(tps) != 3 {
 		t.Fatalf("invalid trading pairs count")
 	}
 	
-	if len(a1.GetTradingPairs()) != 3 {
+	if len(a1.TradingPairs()) != 3 {
 		t.Fatalf("invalid trading pairs count for a1")
 	}
 
-	if len(a2.GetTradingPairs()) != 0 {
+	if len(a2.TradingPairs()) != 0 {
 		t.Fatalf("invalid trading pairs count for a2")
 	}
 
-	if len(a3.GetTradingPairs()) != 1 {
+	if len(a3.TradingPairs()) != 1 {
 		t.Fatalf("invalid trading pairs count for a3")
 	}
 
@@ -1350,9 +1350,9 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 
 	var a *Account
 	for i := 0; i < 4; i++ {
-		a = wallet.GenerateSep0005Account(&wPw)
+		a = wallet.GenerateAccount(&wPw)
 		if a == nil {
-			t.Fatalf("GenerateSep0005Account failed")
+			t.Fatalf("GenerateAccount failed")
 		}
 	}
 
@@ -1489,9 +1489,9 @@ func createWallet4(t *testing.T, wPw string) *Wallet {
 	}	
 
 	for i := 0; i < 100; i++ {
-		a := wallet.GenerateSep0005Account(&wPw)
+		a := wallet.GenerateAccount(&wPw)
 		if a == nil {
-			t.Fatalf("GenerateSep0005Account failed")
+			t.Fatalf("GenerateAccount failed")
 		}
 		a.SetDescription(fmt.Sprintf("SEP005 Account %d", i+1))
 		a.SetMemoText(fmt.Sprintf("memo %d", i+1))
@@ -1525,7 +1525,7 @@ func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Accoun
 		t.Errorf("compareAccount: type mismatch")
 	}
 
-	if a1.GetDescription() != a2.GetDescription() {
+	if a1.Description() != a2.Description() {
 		t.Errorf("compareAccount: type mismatch")
 	}
 
@@ -1541,12 +1541,12 @@ func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Accoun
 		t.Errorf("compareAccount: sep0005DerivationPath mismatch")
 	}
 
-	if a1.GetMemoText() != a2.GetMemoText() {
+	if a1.MemoText() != a2.MemoText() {
 		t.Errorf("compareAccount: memo text mismatch")
 	}
 
-	ids1, id1 := a1.GetMemoId()
-	ids2, id2 := a2.GetMemoId()
+	ids1, id1 := a1.MemoId()
+	ids2, id2 := a2.MemoId()
 
 	if ids1 != ids2 || id1 != id2 {
 		t.Errorf("compareAccount: memo id mismatch")
@@ -1555,16 +1555,16 @@ func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Accoun
 	if verbose {
 		t.Logf("Account: %s", a1.PublicKey())
 		t.Logf("Account type: %d", a1.Type())
-		t.Logf("Account description: %s", a1.GetDescription())
+		t.Logf("Account description: %s", a1.Description())
 		t.Logf("Account private key: %s", a1.PrivateKey(&pw1))
 		t.Logf("Account sep0005DerivationPath: %s", a1.sep0005DerivationPath)
-		t.Logf("Account memo text: %s", a1.GetMemoText())
+		t.Logf("Account memo text: %s", a1.MemoText())
 		t.Logf("Account memo id: %t %d", ids1, id1)
 	}
 }
 
 func compareAssets(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Asset) {
-	if a1.GetDescription() != a2.GetDescription() {
+	if a1.Description() != a2.Description() {
 		t.Errorf("compareAsset: type mismatch")
 	}
 
@@ -1576,8 +1576,8 @@ func compareAssets(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Asset) {
 		t.Errorf("compareAsset: assetId mismatch")
 	}
 
-	tps1 := a1.GetTradingPairs()
-	tps2 := a1.GetTradingPairs()
+	tps1 := a1.TradingPairs()
+	tps2 := a1.TradingPairs()
 
 	if len(tps1) != len(tps2) {
 		t.Errorf("compareAsset: linked trading pairs count mismatch")
@@ -1590,13 +1590,13 @@ func compareAssets(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Asset) {
 	if verbose {
 		t.Logf("Asset Issuer: %s", a1.Issuer())
 		t.Logf("Asset ID: %s", a1.AssetId())
-		t.Logf("Asset description: %s", a1.GetDescription())
+		t.Logf("Asset description: %s", a1.Description())
 	}
 
 }
 
 func compareTradingPairs(t *testing.T, verbose bool, tp1, tp2 *TradingPair) {
-	if tp1.GetDescription() != tp2.GetDescription() {
+	if tp1.Description() != tp2.Description() {
 		t.Errorf("compareTradingPair: description mismatch")
 	}
 
@@ -1649,7 +1649,7 @@ func compareTradingPairs(t *testing.T, verbose bool, tp1, tp2 *TradingPair) {
 			t.Logf("TradingPair Asset2 Issuer: %s", tp1.Asset2().Issuer())
 			t.Logf("TradingPair Asset2 ID: %s", tp1.Asset2().AssetId())
 		}
-		t.Logf("TradingPair description: %s", tp1.GetDescription())
+		t.Logf("TradingPair description: %s", tp1.Description())
 	}
 
 }
@@ -1688,8 +1688,8 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 		t.Fatalf("verification of sep0005AccountCount failed")
 	}
 
-	accounts1 := w1.GetAccounts()
-	accounts2 := w2.GetAccounts()
+	accounts1 := w1.Accounts()
+	accounts2 := w2.Accounts()
 	l1 := len(accounts1) 
 	l2 := len(accounts2)
 
@@ -1708,8 +1708,8 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 	}
 
 
-	accounts1 = w1.GetAddressBook()
-	accounts2 = w2.GetAddressBook()
+	accounts1 = w1.AddressBook()
+	accounts2 = w2.AddressBook()
 	l1 = len(accounts1) 
 	l2 = len(accounts2)
 
@@ -1727,8 +1727,8 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 		compareAccounts(t, verbose, pw1, pw2, a1, a2)
 	}
 
-	assets1 := w1.GetAssets()
-	assets2 := w2.GetAssets()
+	assets1 := w1.Assets()
+	assets2 := w2.Assets()
 	l1 = len(assets1)
 	l2 = len(assets2)
 
@@ -1746,8 +1746,8 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 		compareAssets(t, verbose, pw1, pw2, a1, a2)
 	}
 
-	tps1 := w1.GetTradingPairs()
-	tps2 := w2.GetTradingPairs()
+	tps1 := w1.TradingPairs()
+	tps2 := w2.TradingPairs()
 	l1 = len(tps1)
 	l2 = len(tps2)
 
