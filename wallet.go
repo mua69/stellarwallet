@@ -759,18 +759,13 @@ func decryptAccountSeed(encSeed, key []byte) []byte {
 }	
 
 func derivePublicKey( seed []byte ) []byte {
-	var prev, pub []byte
-	var err error
+	var prev, pub ed25519.PublicKey
 
 	for i := 0; i < 5; i++ {
 		prev = pub
 
-		reader := bytes.NewReader(seed)
-		pub, _, err = ed25519.GenerateKey(reader)
-		if err != nil {
-			panic(err)
-		}
-
+		pub = ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
+		
 		if prev != nil && bytes.Compare(prev, pub) != 0 {
 			panic("calculation error")
 		}
@@ -924,7 +919,7 @@ func (w *Wallet)Accounts() []*Account {
 }
 
 // SeedAccounts returns a slice containing all accounts with a private key,
-//  i.e. generated and random accounts.
+// i.e. generated and random accounts.
 func (w *Wallet)SeedAccounts() []*Account {
 	accounts := make([]*Account, 0, len(w.accounts))
 
