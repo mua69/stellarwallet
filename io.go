@@ -18,7 +18,10 @@ const maxLen = 65535
 const tagWalletDesc = 1
 const tagWalletMasterSeed = 2
 const tagWalletBip39Seed = 3
-const tagSep0005AccountCount = 4
+const tagWalletSep0005AccountCount = 4
+const tagWalletSignature = 50
+const tagWalletVersion = 51
+const tagWalletFlags = 52
 
 const tagAccount = 5
 const tagAccountDesc = 6
@@ -28,16 +31,19 @@ const tagAccountPrivateKey = 9
 const tagAccountSep005DerivationPath = 10
 const tagAccountMemoText = 11
 const tagAccountMemoId = 12
+const tagAccountSignature = 13
 
 const tagAsset = 20
 const tagAssetDesc = 21
 const tagAssetIssuer = 22
 const tagAssetAssetId = 23
+const tagAssetSignature = 24
 
 const tagTradingPair = 30
 const tagTradingPairDesc = 31
 const tagTradingPairAsset1 = 32
 const tagTradingPairAsset2 = 33
+const tagTradingPairSignature = 34
 
 const tagWalletStart = 100
 const tagWalletEnd = 101
@@ -182,8 +188,16 @@ func (w *Wallet) writeToBuffer() []byte {
 
 	writeTag(buf, tagWalletStart)
 
-	writeTag(buf, tagWalletDesc)
-	writeString(buf, w.desc)
+	writeTag(buf, tagWalletVersion)
+	writeUint16(buf, walletVersion)
+
+	writeTag(buf, tagWalletFlags)
+	writeUint64(buf, uint64(w.flags))
+
+	if w.desc != "" {
+		writeTag(buf, tagWalletDesc)
+		writeString(buf, w.desc)
+	}
 
 	writeTag(buf, tagWalletMasterSeed)
 	writeBytes(buf, w.masterSeed)
@@ -192,18 +206,22 @@ func (w *Wallet) writeToBuffer() []byte {
 		writeTag(buf, tagWalletBip39Seed)
 		writeBytes(buf, w.bip39Seed)
 
-		writeTag(buf, tagSep0005AccountCount)
+		writeTag(buf, tagWalletSep0005AccountCount)
 		writeUint16(buf, w.sep0005AccountCount)
 	}
 
-	for i, _ := range w.accounts {
-		a := &w.accounts[i]
+	writeTag(buf, tagWalletSignature)
+	writeBytes(buf, w.signature)
+
+	for _, a := range w.accounts {
 
 		if a.active {
 			writeTag(buf, tagAccount)
 
-			writeTag(buf, tagAccountDesc)
-			writeString(buf, a.desc)
+			if a.desc != "" {
+				writeTag(buf, tagAccountDesc)
+				writeString(buf, a.desc)
+			}
 			
 			writeTag(buf, tagAccountType)
 			writeUint16(buf, a.accountType)
@@ -230,6 +248,11 @@ func (w *Wallet) writeToBuffer() []byte {
 				writeTag(buf, tagAccountMemoId)
 				writeUint64(buf, a.memoId)
 			}
+
+			if a.signature != nil {
+				writeTag(buf, tagAccountSignature)
+				writeBytes(buf, a.signature)
+			}
 		}
 	}
 
@@ -237,14 +260,21 @@ func (w *Wallet) writeToBuffer() []byte {
 		if a.active {
 			writeTag(buf, tagAsset)
 
-			writeTag(buf, tagAssetDesc)
-			writeString(buf, a.desc)
-			
+			if a.desc != "" {
+				writeTag(buf, tagAssetDesc)
+				writeString(buf, a.desc)
+			}
+
 			writeTag(buf, tagAssetIssuer)
 			writeString(buf, a.issuer)
 			
 			writeTag(buf, tagAssetAssetId)
-			writeString(buf, a.assetId)			
+			writeString(buf, a.assetId)
+
+			if a.signature != nil {
+				writeTag(buf, tagAssetSignature)
+				writeBytes(buf, a.signature)
+			}
 		}
 	}
 
@@ -252,8 +282,10 @@ func (w *Wallet) writeToBuffer() []byte {
 		if tp.active {
 			writeTag(buf, tagTradingPair)
 
-			writeTag(buf, tagTradingPairDesc)
-			writeString(buf, tp.desc)
+			if tp.desc != "" {
+				writeTag(buf, tagTradingPairDesc)
+				writeString(buf, tp.desc)
+			}
 
 			if tp.asset1 != nil {
 				writeTag(buf, tagTradingPairAsset1)
@@ -265,6 +297,11 @@ func (w *Wallet) writeToBuffer() []byte {
 				writeTag(buf, tagTradingPairAsset2)
 				writeString(buf, tp.asset2.issuer)
 				writeString(buf, tp.asset2.assetId)
+			}
+
+			if tp.signature != nil {
+				writeTag(buf, tagTradingPairSignature)
+				writeBytes(buf, tp.signature)
 			}
 		}
 	}
@@ -309,6 +346,9 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 	var ac *Account
 	var as *Asset
 	var tp *TradingPair
+	var wversion uint16
+
+	wversion = 0
 
 	r := bytes.NewReader(buf)
 
@@ -324,6 +364,14 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 		if err != nil { return err }
 
 		switch tag {
+		case tagWalletVersion:
+			wversion, err = readUint16(r)
+
+		case tagWalletFlags:
+			d, err := readUint64(r)
+			if err != nil { return err }
+			w.flags = WalletFlags(d)
+
 		case tagWalletDesc:
 			s, err := readString(r)
 			if err != nil { return err }
@@ -339,10 +387,15 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			if err != nil { return err }
 			w.bip39Seed = buf
 			
-		case tagSep0005AccountCount:
+		case tagWalletSep0005AccountCount:
 			d, err := readUint16(r)
 			if err != nil { return err }
 			w.sep0005AccountCount = d
+
+		case tagWalletSignature:
+			buf, err := readBytes(r)
+			if err != nil { return err }
+			w.signature = buf
 
 		case tagAccount:
 			ac = w.newAccount()
@@ -391,6 +444,12 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			ac.memoId = id
 			ac.memoIdSet = true
 
+		case tagAccountSignature:
+			if ac == nil { return errors.New("unexpected account tag") }
+			buf, err := readBytes(r)
+			if err != nil { return err }
+			ac.signature = buf
+
 		case tagAsset:
 			as = w.newAsset()
 			as.active = true
@@ -412,7 +471,13 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			s, err := readString(r)
 			if err != nil { return err }
 			as.assetId = s
-			
+
+		case tagAssetSignature:
+			if as == nil { return errors.New("unexpected asset tag") }
+			buf, err := readBytes(r)
+			if err != nil { return err }
+			as.signature = buf
+
 		case tagTradingPair:
 			tp = w.newTradingPair()
 			tp.active = true
@@ -443,6 +508,12 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			if tp.asset2 == nil { return errors.New("trading pair asset not found") }
 			tp.asset2.linkTradingPair(tp)
 
+		case tagTradingPairSignature:
+			if tp == nil { return errors.New("unexpected trading pair tag") }
+			buf, err := readBytes(r)
+			if err != nil { return err }
+			tp.signature = buf
+
 		case tagWalletEnd:
 			stop = true
 
@@ -450,10 +521,15 @@ func (w *Wallet) readFromBuffer(buf []byte) error {
 			return errors.New(fmt.Sprintf("invalid tag found: %x", tag) )
 		}
 
+		w.migrateWallet(wversion)
 	}
 
 
 	return nil
+}
+
+func (w *Wallet)migrateWallet(fromVersion uint16) {
+	// nothing to do for now
 }
 
 func (w *Wallet) writeToBufferCompressed() []byte {

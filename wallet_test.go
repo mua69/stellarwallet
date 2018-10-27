@@ -139,7 +139,7 @@ func TestAes5(t *testing.T) {
 func TestWallet1(t *testing.T) {
 	pw1 := "pwTest1!%$ 123 PW"
 	pw2 := "pwTest2!%$ 123 PW"
-	w := NewWallet(&pw1)
+	w := NewWallet(0, &pw1)
 
 	if w == nil {
 		t.Fatalf("new wallet failed")
@@ -157,7 +157,7 @@ func TestWallet1(t *testing.T) {
 func TestWallet2(t *testing.T) {
 	pw1 := ""
 	pw2 := "pwTest2!%$ 123 PW"
-	w := NewWallet(&pw1)
+	w := NewWallet(0, &pw1)
 
 	if w == nil {
 		t.Fatalf("new wallet failed")
@@ -175,7 +175,7 @@ func TestWallet2(t *testing.T) {
 
 func TestMnemonic1(t *testing.T) {
 	pw := "pwTest1!%$ 123 PW"
-	w := NewWallet(&pw)
+	w := NewWallet(0, &pw)
 
 	words := w.Bip39Mnemonic(&pw)
 
@@ -197,7 +197,7 @@ func TestChangePassword1(t *testing.T) {
 	pw2 := "12pass34"
 
 
-	w := NewWallet(&pw1)
+	w := NewWallet(0, &pw1)
 
 	if w == nil {
 		t.Fatalf("new wallet failed")
@@ -268,7 +268,7 @@ func TestGenBip39Seed1(t *testing.T) {
 	mnPw := ""
 	wPw := "stellarwalletpw"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(0, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
@@ -326,7 +326,7 @@ func TestGenBip39Seed2(t *testing.T) {
 	mnPw := "mnemonicpasswordtest"
 	wPw := "stellarwalletpw"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(0, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
@@ -386,7 +386,7 @@ func TestGenSep0005Account1(t *testing.T) {
 	mnPw := "mnemonicpasswordtest"
 	wPw := "stellarwalletpw"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(0, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
@@ -450,7 +450,7 @@ func TestGenSep0005Account2(t *testing.T) {
 	mnPw := ""
 	wPw := "stellarwalletpw"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(0, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
@@ -521,7 +521,7 @@ func TestGenSep0005Account3(t *testing.T) {
 	mnPw := "p4ssphr4se"
 	wPw := "stellarwalletpw"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(0, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
@@ -914,7 +914,7 @@ func TestRecoverAccounts7(t *testing.T) {
 func TestAddRandomAccount1(t *testing.T) {
 	pw := "gBCdqqYVvCmJJAQOhtuwme8vvGArKDov"
 
-	w := NewWallet(&pw)
+	w := NewWallet(0, &pw)
 
 	seed := "invalid"
 
@@ -986,7 +986,7 @@ func TestAddRandomAccount1(t *testing.T) {
 func TestAddWatchingAccount1(t *testing.T) {
 	pw := "gBCdqqYVvCmJJAQOhtuwme8vvGArKDov"
 
-	w := NewWallet(&pw)
+	w := NewWallet(0, &pw)
 
 
 	k1 := "invalid"
@@ -994,25 +994,25 @@ func TestAddWatchingAccount1(t *testing.T) {
 	k3 := "GBCKQ4CHJF3OPKSJQD6G7NBSGMMQ5HDD77ZIKDIREBFBFCRMHJIOELLN" // wrong checksum
 	k4 := "GBCKQ4CHJF3OPKSJQD6G7NBSGMMQ5HDD77ZIKDIREBFBFCRMHJIOELLM" 
 
-	a := w.AddWatchingAccount(k1)
+	a := w.AddWatchingAccount(k1, &pw)
 
 	if a != nil {
 		t.Fatalf("invalid pubkey accepted")
 	}
 
-	a = w.AddWatchingAccount(k2)
+	a = w.AddWatchingAccount(k2, &pw)
 
 	if a != nil {
 		t.Fatalf("invalid pubkey accepted")
 	}
 	
-	a = w.AddWatchingAccount(k3)
+	a = w.AddWatchingAccount(k3, &pw)
 
 	if a != nil {
 		t.Fatalf("invalid pubkey accepted")
 	}
 
-	a = w.AddWatchingAccount(k4)
+	a = w.AddWatchingAccount(k4, &pw)
 
 	if a == nil {
 		t.Fatalf("add account failed")
@@ -1026,9 +1026,9 @@ func TestAddWatchingAccount1(t *testing.T) {
 		t.Fatalf("public key mismatch")
 	}
 
-	a.SetDescription("Test Description")
+	a.SetDescription("Test Description", &pw)
 
-	a = w.AddWatchingAccount(k4)
+	a = w.AddWatchingAccount(k4, &pw)
 
 	if a != nil {
 		t.Fatalf("add account twice succeeded")
@@ -1073,7 +1073,7 @@ func TestAddWatchingAccount1(t *testing.T) {
 func TestAddAddressBookAccount1(t *testing.T) {
 	pw := "gBCdqqYVvCmJJAQOhtuwme8vvGArKDov"
 
-	w := NewWallet(&pw)
+	w := NewWallet(0, &pw)
 
 
 	k1 := "invalid"
@@ -1081,35 +1081,35 @@ func TestAddAddressBookAccount1(t *testing.T) {
 	k3 := "GBCKQ4CHJF3OPKSJQD6G7NBSGMMQ5HDD77ZIKDIREBFBFCRMHJIOELLN" // wrong checksum
 	k4 := "GBCKQ4CHJF3OPKSJQD6G7NBSGMMQ5HDD77ZIKDIREBFBFCRMHJIOELLM" 
 
-	a := w.AddAddressBookAccount(k1)
+	a := w.AddAddressBookAccount(k1, &pw)
 
 	if a != nil {
 		t.Fatalf("invalid pubkey accepted")
 	}
 	
-	a = w.AddAddressBookAccount(k2)
+	a = w.AddAddressBookAccount(k2, &pw)
 
 	if a != nil {
 		t.Fatalf("invalid pubkey accepted")
 	}
 	
-	a = w.AddAddressBookAccount(k3)
+	a = w.AddAddressBookAccount(k3, &pw)
 
 	if a != nil {
 		t.Fatalf("invalid pubkey accepted")
 	}
 
-	a = w.AddAddressBookAccount(k4)
+	a = w.AddAddressBookAccount(k4, &pw)
 
 	if a == nil {
 		t.Fatalf("add account failed")
 	}
 
-	if a.SetMemoText("too long       ds            sadasd           ds") == nil {
+	if a.SetMemoText("too long       ds            sadasd           ds", &pw) == nil {
 		t.Fatalf("SetMemoText accepted invald string")
 	}
 
-	if a.SetMemoText("memo text") != nil {
+	if a.SetMemoText("memo text", &pw) != nil {
 		t.Fatalf("SetMemoText failed")
 	}
 
@@ -1126,7 +1126,7 @@ func TestAddAddressBookAccount1(t *testing.T) {
 		t.Fatalf("public key mismatch")
 	}
 
-	a = w.AddAddressBookAccount(k4)
+	a = w.AddAddressBookAccount(k4, &pw)
 
 	if a != nil {
 		t.Fatalf("add account twice succeeded")
@@ -1160,44 +1160,45 @@ func TestAddAddressBookAccount1(t *testing.T) {
 }
 
 func TestAsset1(t *testing.T) {
-	w := createWallet2(t, "pass")
+	pw := "pass"
+	w := createWallet2(t, pw)
 
-	a := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
+	a := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT", &pw)
 	if a == nil {
 		t.Fatal("add asset failed")
 	}
 
-	err := a.SetDescription("asset description") 
+	err := a.SetDescription("asset description", &pw)
 	if err != nil {
 		t.Fatalf("set description failed: %s", err.Error())
 	}
 
-	a = w.AddAsset("invalid", "EURT10eu")
+	a = w.AddAsset("invalid", "EURT10eu", &pw)
 	if a != nil {
 		t.Fatal("invalid issuer accepted")
 	}
 
-	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "")
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "", &pw)
 	if a != nil {
 		t.Fatal("invalid assetId accepted")
 	}
 
-	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "E U")
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "E U", &pw)
 	if a != nil {
 		t.Fatal("invalid assetId accepted")
 	}
 
-	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "1234567890123")
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "1234567890123", &pw)
 	if a != nil {
 		t.Fatal("invalid assetId accepted")
 	}
 
-	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT1")
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT1", &pw)
 	if a == nil {
 		t.Fatal("add asset failed")
 	}
 
-	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT2")
+	a = w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT2", &pw)
 	if a == nil {
 		t.Fatal("add asset failed")
 	}
@@ -1234,37 +1235,38 @@ func TestAsset1(t *testing.T) {
 }
 
 func TestTradingPair1(t *testing.T) {
-	w := createWallet3(t, "wallet password")
+	pw := "wallet password"
+	w := createWallet3(t, pw)
 
-	a1 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
-	a2 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT")
-	a3 := w.AddAsset("GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", "USDT")
+	a1 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT", &pw)
+	a2 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT", &pw)
+	a3 := w.AddAsset("GB3MTYFXPBZBUINVG72XR7AQ6P2I32CYSXWNRKJ2PV5H5C7EAM5YYISO", "USDT", &pw)
 
 	if a1 == nil || a2 == nil || a3 == nil {
 		t.Fatalf("add asset failed")
 	}
 
-	tp := w.AddTradingPair(nil, nil)
+	tp := w.AddTradingPair(nil, nil, &pw)
 	if tp != nil {
 		t.Fatalf("add asset: invalid args accepted")
 	}
 
-	tp = w.AddTradingPair(a1, a1)
+	tp = w.AddTradingPair(a1, a1, &pw)
 	if tp != nil {
 		t.Fatalf("add asset: invalid args accepted")
 	}
 
-	tp1 := w.AddTradingPair(a1, a2)
-	tp2 := w.AddTradingPair(a1, a3)
-	tp3 := w.AddTradingPair(a1, nil)
-	tp4 := w.AddTradingPair(nil, a1)
-	tp5 := w.AddTradingPair(nil, a2)
+	tp1 := w.AddTradingPair(a1, a2, &pw)
+	tp2 := w.AddTradingPair(a1, a3, &pw)
+	tp3 := w.AddTradingPair(a1, nil, &pw)
+	tp4 := w.AddTradingPair(nil, a1, &pw)
+	tp5 := w.AddTradingPair(nil, a2, &pw)
 
 	if tp1 == nil || tp2 == nil || tp3 == nil || tp4 == nil || tp5 == nil {
 		t.Fatalf("add trading pair failed")
 	}
 
-	if tp1.SetDescription("test description") != nil {
+	if tp1.SetDescription("test description", &pw) != nil {
 		t.Fatalf("set descripton failed")
 	}
 
@@ -1339,14 +1341,15 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 	
 	mnPw := "mnemonicpasswordtest"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(WalletFlagSignDescription|WalletFlagSignAccounts|WalletFlagSignAssets|WalletFlagSignTradingPairs|WalletFlagSignAccountMemo, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
 		t.FailNow()
 	}
 
-	wallet.SetDescription("wallet description")
+	wallet.SetDescription("wallet description", &wPw)
+
 
 	var a *Account
 	for i := 0; i < 4; i++ {
@@ -1367,32 +1370,32 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 		t.Fatalf("AddRandomAccount failed")
 	}
 
-	if a.SetMemoText("memo1") != nil {
+	if a.SetMemoText("memo1", &wPw) != nil {
 		t.Fatalf("SetMemoText failed")
 	}
 
-	a.SetMemoId(1234)
+	a.SetMemoId(1234, &wPw)
 
 	k = "SBQPDFUGLMWJYEYXFRM5TQX3AX2BR47WKI4FDS7EJQUSEUUVY72MZPJF"
 	a = wallet.AddRandomAccount(&k, &wPw)
 	if a == nil {
 		t.Fatalf("AddRandomAccount failed")
 	}
-	a.SetDescription("Account desc 1")
-	a.SetMemoId(958483)
+	a.SetDescription("Account desc 1", &wPw)
+	a.SetMemoId(958483, &wPw)
 	
-	a = wallet.AddWatchingAccount("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS")
+	a = wallet.AddWatchingAccount("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", &wPw)
 	if a == nil {
 		t.Fatalf("AddWatchingAccount failed")
 	}
 	
 
-	a = wallet.AddAddressBookAccount("GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4")
+	a = wallet.AddAddressBookAccount("GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", &wPw)
 	if a == nil {
 		t.Fatalf("AddAddressBookAccount failed")
 	}
 
-	as := wallet.AddAsset("GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", "EURT")
+	as := wallet.AddAsset("GDHX4LU6YBSXGYTR7SX2P4ZYZSN24VXNJBVAFOB2GEBKNN3I54IYSRM4", "EURT", &wPw)
 	if as == nil {
 		t.Fatalf("AddAsset failed")
 	}
@@ -1401,33 +1404,37 @@ func createWallet1(t *testing.T, wPw string) *Wallet {
 		t.Fatalf("DeleteAsset failed")	
 	}
 
-	as1 := wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT")
+	as1 := wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT", &wPw)
 	if as1 == nil {
 		t.Fatalf("AddAsset failed")
 	}
 
-	as2 := wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT")
+	as2 := wallet.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "USDT", &wPw)
 	if as2 == nil {
 		t.Fatalf("AddAsset failed")
 	}
-	as2.SetDescription("asset description")
+	as2.SetDescription("asset description", &wPw)
 
-	tp1 := wallet.AddTradingPair(as1, as2)
+	tp1 := wallet.AddTradingPair(as1, as2, &wPw)
 	if tp1 == nil {
 		t.Fatalf("AddTradingPair failed")
 	}
-	if tp1.SetDescription("trading pair description") != nil {
+	if tp1.SetDescription("trading pair description", &wPw) != nil {
 		t.Fatalf("trading pair: add description failed")
 	}
 
-	tp2 := wallet.AddTradingPair(as1, nil)
+	tp2 := wallet.AddTradingPair(as1, nil, &wPw)
 	if tp2 == nil {
 		t.Fatalf("AddTradingPair failed")
 	}
 
-	tp3 := wallet.AddTradingPair(nil, as1)
+	tp3 := wallet.AddTradingPair(nil, as1, &wPw)
 	if tp3 == nil {
 		t.Fatalf("AddTradingPair failed")
+	}
+
+	if !wallet.CheckIntegrity(&wPw) {
+		t.Error("wallet integrity check failed")
 	}
 
 	return wallet
@@ -1441,19 +1448,23 @@ func createWallet2(t *testing.T, wPw string) *Wallet {
 	
 	mnPw := "mnemonicpasswordtest"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(0, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
 		t.FailNow()
 	}	
 
+	if !wallet.CheckIntegrity(&wPw) {
+		t.Error("wallet integrity check failed")
+	}
+
 	return wallet
 
 }
 
 func createWallet3(t *testing.T, wPw string) *Wallet {
-	wallet := NewWallet(&wPw)
+	wallet := NewWallet(0, &wPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
@@ -1466,8 +1477,11 @@ func createWallet3(t *testing.T, wPw string) *Wallet {
 	if a == nil {
 		t.Fatalf("AddRandomAccount failed")
 	}
-	a.SetDescription("Account desc 1")
+	a.SetDescription("Account desc 1", &wPw)
 	
+	if !wallet.CheckIntegrity(&wPw) {
+		t.Error("wallet integrity check failed")
+	}
 
 	return wallet
 
@@ -1481,7 +1495,7 @@ func createWallet4(t *testing.T, wPw string) *Wallet {
 	
 	mnPw := "mnemonicpasswordtest"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(WalletFlagSignDescription, &wPw, w, &mnPw)
 
 	if wallet == nil {
 		t.Logf("generate wallet from mnemonic failed")
@@ -1493,9 +1507,13 @@ func createWallet4(t *testing.T, wPw string) *Wallet {
 		if a == nil {
 			t.Fatalf("GenerateAccount failed")
 		}
-		a.SetDescription(fmt.Sprintf("SEP005 Account %d", i+1))
-		a.SetMemoText(fmt.Sprintf("memo %d", i+1))
-		a.SetMemoId(1000)
+		a.SetDescription(fmt.Sprintf("SEP005 Account %d", i+1), &wPw)
+		a.SetMemoText(fmt.Sprintf("memo %d", i+1), &wPw)
+		a.SetMemoId(1000, &wPw)
+	}
+
+	if !wallet.CheckIntegrity(&wPw) {
+		t.Error("wallet integrity check failed")
 	}
 
 	return wallet
@@ -1510,10 +1528,14 @@ func createWalletStd1(t *testing.T, wPw string) *Wallet {
 
 	mnPw := ""
 
-	w := NewWalletFromMnemonic(&wPw, words, &mnPw) 
+	w := NewWalletFromMnemonic(0, &wPw, words, &mnPw)
 
 	if w == nil {
 		t.Fatal("generate wallet from mnemonic failed")
+	}
+
+	if !w.CheckIntegrity(&wPw) {
+		t.Error("wallet integrity check failed")
 	}
 
 	return w
@@ -1551,7 +1573,11 @@ func compareAccounts(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Accoun
 	if ids1 != ids2 || id1 != id2 {
 		t.Errorf("compareAccount: memo id mismatch")
 	}
-	
+
+	if bytes.Compare(a1.signature, a2.signature) != 0 {
+		t.Error("account signature mismatch")
+	}
+
 	if verbose {
 		t.Logf("Account: %s", a1.PublicKey())
 		t.Logf("Account type: %d", a1.Type())
@@ -1583,8 +1609,12 @@ func compareAssets(t *testing.T, verbose bool, pw1, pw2 string, a1, a2 *Asset) {
 		t.Errorf("compareAsset: linked trading pairs count mismatch")
 	}
 
-	for i, _ := range(tps1) {
+	for i := range tps1 {
 		compareTradingPairs(t, verbose, tps1[i], tps2[i])
+	}
+
+	if bytes.Compare(a1.signature, a2.signature) != 0 {
+		t.Error("asset signature mismatch")
 	}
 
 	if verbose {
@@ -1640,6 +1670,10 @@ func compareTradingPairs(t *testing.T, verbose bool, tp1, tp2 *TradingPair) {
 		t.Errorf("compareTradingPair: asset 2 mismatch")
 	}
 
+	if bytes.Compare(tp1.signature, tp2.signature) != 0 {
+		t.Error("TradingPair signature mismatch")
+	}
+
 	if verbose {
 		if tp1.Asset1() != nil {
 			t.Logf("TradingPair Asset1 Issuer: %s", tp1.Asset1().Issuer())
@@ -1660,6 +1694,10 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 		t.Fatalf("verification of description failed")
 	}
 
+	if w1.flags != w2.flags {
+		t.Fatalf("verification of wallet flags failed")
+	}
+
 	key1 := deriveAesKey(&pw1)
 	key2 := deriveAesKey(&pw2)
 	
@@ -1667,6 +1705,18 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 	seed2 := w2.decryptMasterSeed(key2)
 	if bytes.Compare(seed1, seed2) != 0 {
 		t.Fatalf("verification of master seed failed")
+	}
+
+	if bytes.Compare(w1.signature, w2.signature) != 0 {
+		t.Fatal("wallet signature mismatch")
+	}
+
+	if !w1.CheckIntegrity(&pw1) {
+		t.Error("w1 integrity check failed")
+	}
+
+	if !w2.CheckIntegrity(&pw2) {
+		t.Error("w2 integrity check failed")
 	}
 
 	seed1 = nil
@@ -1773,12 +1823,245 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 	}
 }
 
+func checkWalletIntegrity(t *testing.T, id string, w *Wallet, pw *string, mustFail bool) {
+	if w.CheckIntegrity(pw) != !mustFail {
+		if mustFail {
+			t.Errorf("%s: Wallet integrity check unexpectedly passed", id)
+		} else {
+			t.Errorf("%s: Wallet integrity check not passed", id)
+		}
+	}
+}
+
+func testSignatures(t *testing.T, signPublicKeys, signDescription, signMemo, signAsset, signTradingPair bool) {
+	s := "password1234"
+	pw := &s
+
+	var flags WalletFlags
+
+	if signPublicKeys {
+		flags |= WalletFlagSignAccounts
+	}
+	if signDescription {
+		flags |= WalletFlagSignDescription
+	}
+	if signMemo {
+		flags |= WalletFlagSignAccountMemo
+	}
+	if signAsset {
+		flags |= WalletFlagSignAssets
+	}
+	if signTradingPair {
+		flags |= WalletFlagSignTradingPairs
+	}
+
+	w := NewWallet(flags, pw)
+	w.GenerateBip39Seed(pw, pw)
+
+	w.SetDescription("wallet description", pw)
+
+	checkWalletIntegrity(t, "1", w, pw,false)
+
+	s1 := w.flags
+	w.flags += 1
+	checkWalletIntegrity(t, "2", w, pw,true)
+	w.flags = s1
+	checkWalletIntegrity(t, "3", w, pw,false)
+
+	s2 := w.sep0005AccountCount
+	w.sep0005AccountCount += 1
+	checkWalletIntegrity(t, "4", w, pw,true)
+	w.sep0005AccountCount = s2
+	checkWalletIntegrity(t, "5", w, pw,false)
+
+	ss := w.desc
+	w.desc = "wrong"
+	checkWalletIntegrity(t, "6", w, pw,signDescription)
+	w.desc = ss
+	checkWalletIntegrity(t, "7", w, pw,false)
+
+	acc := w.GenerateAccount(pw)
+	checkWalletIntegrity(t, "8", w, pw,false)
+
+	testAccountSignatures(t, "1", w, pw, acc, signPublicKeys, signDescription, signMemo)
+
+	seed := "SAEWIVK3VLNEJ3WEJRZXQGDAS5NVG2BYSYDFRSH4GKVTS5RXNVED5AX7"
+	acc = w.AddRandomAccount(&seed, pw)
+	checkWalletIntegrity(t, "9", w, pw,false)
+
+	testAccountSignatures(t, "2", w, pw, acc, signPublicKeys, signDescription, signMemo)
+
+	acc = w.AddWatchingAccount("GDY47CJARRHHL66JH3RJURDYXAMIQ5DMXZLP3TDAUJ6IN2GUOFX4OJOC", pw)
+	checkWalletIntegrity(t, "10", w, pw,false)
+
+	testAccountSignatures(t, "3", w, pw, acc, signPublicKeys, signDescription, signMemo)
+
+	acc = w.AddAddressBookAccount("GCLAQF5H5LGJ2A6ACOMNEHSWYDJ3VKVBUBHDWFGRBEPAVZ56L4D7JJID", pw)
+	checkWalletIntegrity(t, "11", w, pw,false)
+
+	testAccountSignatures(t, "4", w, pw, acc, signPublicKeys, signDescription, signMemo)
+
+
+	// Assets
+	ass1 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT", pw)
+	checkWalletIntegrity(t, "12", w, pw,false)
+
+	ss = ass1.issuer
+	ass1.issuer = "wrong"
+	checkWalletIntegrity(t, "13", w, pw, signAsset)
+	ass1.issuer = ss
+	checkWalletIntegrity(t, "14", w, pw, false)
+
+	ss = ass1.assetId
+	ass1.assetId = "wrong"
+	checkWalletIntegrity(t, "15", w, pw, signAsset)
+	ass1.assetId = ss
+	checkWalletIntegrity(t, "16", w, pw, false)
+
+	ass1.SetDescription("asset description", pw)
+	checkWalletIntegrity(t, "17", w, pw, false)
+
+	ss = ass1.desc
+	ass1.desc = "wrong"
+	checkWalletIntegrity(t, "18", w, pw, signAsset&&signDescription)
+	ass1.desc = ss
+	checkWalletIntegrity(t, "19", w, pw, false)
+
+	// Trading Pair
+	ass2 := w.AddAsset("GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", "BTC", pw)
+	if ass2 == nil {
+		t.Fatal("Adding 2nd asset failed")
+	}
+
+	tp := w.AddTradingPair(ass1, nil, pw)
+	testTradingPairSignatures(t, "5", w, pw, tp, signTradingPair, signDescription)
+
+	tp = w.AddTradingPair(nil, ass1, pw)
+	testTradingPairSignatures(t, "6", w, pw, tp, signTradingPair, signDescription)
+
+	tp = w.AddTradingPair(ass1, ass2, pw)
+	testTradingPairSignatures(t, "7", w, pw, tp, signTradingPair, signDescription)
+
+}
+
+func testAccountSignatures(t *testing.T, id string, w *Wallet, pw *string, a* Account, signed, signDescription, signMemo bool) {
+	a.SetDescription("account description", pw)
+	checkWalletIntegrity(t, id+".1", w, pw,false)
+	ss := a.desc
+	a.desc = "wrong"
+	checkWalletIntegrity(t, id+".2", w, pw, signed&&signDescription)
+	a.desc = ss
+
+	a.SetMemoText("memo", pw)
+	checkWalletIntegrity(t, id+".3", w, pw,false)
+	ss = a.memoText
+	a.memoText = "wrong"
+	checkWalletIntegrity(t, id+".4", w, pw, signed&&signMemo)
+	a.memoText = ss
+
+	a.SetMemoId(1, pw)
+	checkWalletIntegrity(t, id+".5", w, pw,false)
+	a.memoId = 2
+	checkWalletIntegrity(t, id+".6", w, pw, signed&&signMemo)
+	a.memoId = 1
+
+	a.ClearMemoId(pw)
+	checkWalletIntegrity(t, id+".7", w, pw,false)
+	a.memoIdSet = true
+	checkWalletIntegrity(t, id+".8", w, pw, signed&&signMemo)
+	a.memoIdSet = false
+
+	ss = a.publicKey
+	a.publicKey = "wrong"
+	checkWalletIntegrity(t, id+".9", w, pw, signed)
+	a.publicKey = ss
+	checkWalletIntegrity(t, id+".10", w, pw,false)
+
+	a.accountType += 1
+	checkWalletIntegrity(t, id+".11", w, pw, signed)
+	a.accountType -= 1
+	checkWalletIntegrity(t, id+".12", w, pw,false)
+
+	if a.accountType == AccountTypeSEP0005 {
+		ss = a.sep0005DerivationPath
+		a.sep0005DerivationPath = "wrong"
+		checkWalletIntegrity(t, id+".13", w, pw, signed)
+		a.sep0005DerivationPath = ss
+		checkWalletIntegrity(t, id+".14", w, pw, false)
+	}
+}
+
+func testTradingPairSignatures(t *testing.T, id string, w *Wallet, pw *string, tp* TradingPair, signed, signDescription bool) {
+	tp.SetDescription("account description", pw)
+	checkWalletIntegrity(t, id+".1", w, pw,false)
+	ss := tp.desc
+	tp.desc = "wrong"
+	checkWalletIntegrity(t, id+".2", w, pw, signed&&signDescription)
+	tp.desc = ss
+
+	a := w.AddAsset("GBOSMFQYKWFDHJWCMCZSMGUMWCZOM4KFMXXS64INDHVCJ2A2JAABCYRR", "COD1", pw)
+
+	checkWalletIntegrity(t, id+".3", w, pw,false)
+
+	if tp.asset1 == nil {
+		tp.asset1 = a
+		checkWalletIntegrity(t, id+".4", w, pw, signed)
+		tp.asset1 = nil
+	} else {
+		sa := tp.asset1
+		tp.asset1 = nil
+		checkWalletIntegrity(t, id+".5", w, pw, signed)
+		tp.asset1 = sa
+	}
+
+	checkWalletIntegrity(t, id+".6", w, pw,false)
+
+	if tp.asset2 == nil {
+		tp.asset2 = a
+		checkWalletIntegrity(t, id+".7", w, pw, signed)
+		tp.asset2 = nil
+	} else {
+		sa := tp.asset2
+		tp.asset2 = nil
+		checkWalletIntegrity(t, id+".8", w, pw, signed)
+		tp.asset2 = sa
+	}
+
+	checkWalletIntegrity(t, id+".9", w, pw,false)
+}
+
+
+func TestSignatures1(t *testing.T) {
+	testSignatures(t, false, false, false, false, false)
+
+}
+
+func TestSignatures2(t *testing.T) {
+	testSignatures(t, false, true, false, false, false)
+}
+
+func TestSignatures3(t *testing.T) {
+	testSignatures(t, false, false, true, false, false)
+}
+
+func TestSignatures4(t *testing.T) {
+	testSignatures(t, true, false, false, true, true)
+}
+
+func TestSignatures5(t *testing.T) {
+	testSignatures(t, true, true, false, true, true)
+}
+
+func TestSignatures6(t *testing.T) {
+	testSignatures(t, true, true, true, true, true)
+}
+
 func TestIO1(t *testing.T) {
 	pw := "gBCdqqYVvCmJJAQOhtuwme8vvGArKDov"
 
-	w := NewWallet(&pw)
-	
-	w.desc = "Test"
+	w := NewWallet(0, &pw)
+
+	w.SetDescription( "Test", &pw)
 
 	data := w.ExportBase64()
 	
