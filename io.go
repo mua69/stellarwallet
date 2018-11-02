@@ -48,6 +48,8 @@ const tagTradingPairSignature = 34
 const tagWalletStart = 100
 const tagWalletEnd = 101
 
+const tagWalletNotEncrypted = 200
+const tagWalletEncrypted = 201
 
 func writeUint16(w io.Writer, data uint16) {
 	err := binary.Write(w, binary.BigEndian, data)
@@ -547,12 +549,26 @@ func (w *Wallet) writeToBufferCompressed() []byte {
 	err = compress.Close()
 	if err != nil { panic("compressing failed: " + err.Error()) }
 
-	return bufComp.Bytes()
+	buf = make([]byte, 1, len(bufComp.Bytes())+1)
+	buf[0] = tagWalletNotEncrypted
+	buf = append(buf, bufComp.Bytes()...)
+
+	return buf
 }
 
 
 func (w *Wallet) readFromBufferCompressed(buf []byte) error {
-	r := bytes.NewReader(buf)
+
+	switch buf[0] {
+	case tagWalletNotEncrypted:
+
+	case tagWalletEncrypted:
+
+	default:
+		return errors.New("invalid wallet encryption tag")
+	}
+
+	r := bytes.NewReader(buf[1:])
 	
 	decompress, err := gzip.NewReader(r)
 	if err != nil { return errors.New("de-compressing failed: " + err.Error()) }

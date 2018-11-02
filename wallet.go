@@ -387,6 +387,34 @@ func (w *Wallet)ExportBase64() string {
 	}
 }
 
+// Flags returns the currently set wallet flags.
+func (w *Wallet)Flags() WalletFlags {
+	return w.flags
+}
+
+// SetFlags sets new wallet flags.
+// walletPassword is required to re-build the signatures.
+// This function panics if invalid wallet flags are given.
+// Return false if an invalid wallet password was given.
+func (w *Wallet)SetFlags(flags WalletFlags, walletPassword *string) bool {
+	checkWalletFlags(flags)
+
+	key := w.checkPassword(walletPassword)
+	if key == nil {
+		return false
+	}
+	defer EraseByteBuffer(key)
+
+	sk := w.deriveSigningKey(key)
+	defer EraseByteBuffer(sk)
+	w.flags = flags
+
+	w.signAll(sk)
+
+	return true
+}
+
+
 // Returns true if specified wallet flag is set.
 func (w *Wallet)isFlagSet(flag WalletFlags) bool {
 	if (w.flags&flag) != 0 {
@@ -395,7 +423,8 @@ func (w *Wallet)isFlagSet(flag WalletFlags) bool {
 	return false
 }
 
-// CheckIntegrity verifies that the not encrypted data of the wallet has not been modified by an attacker.
+// CheckIntegrity verifies the consistency of the wallet data and ensures that
+// the not encrypted data of the wallet has not been modified (e.g. by an attacker).
 // Returns true on successful integrity verification, else false.
 // If the given walletPassword is invalid, false will be returned as well.
 func (w *Wallet)CheckIntegrity(walletPassword *string) bool {
@@ -406,6 +435,39 @@ func (w *Wallet)CheckIntegrity(walletPassword *string) bool {
 	}
 	defer EraseByteBuffer(key)
 
+	if !w.checkConsistency(key) {
+		return false
+	}
+
+	if !w.checkSignatures(key) {
+		return false
+	}
+	return true
+}
+
+func (w *Wallet)checkConsistency(key []byte) bool {
+	for _, a := range w.accounts {
+		if !a.checkConsistency(key) {
+			return false
+		}
+	}
+
+	for _, a := range w.assets {
+		if !a.checkConsistency() {
+			return false
+		}
+	}
+
+	for _, tp := range w.tradingPairs {
+		if !tp.checkConsistency() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (w *Wallet)checkSignatures(key []byte) bool {
 	sk := w.deriveSigningKey(key)
 	if  sk == nil {
 		return false
@@ -419,10 +481,6 @@ func (w *Wallet)CheckIntegrity(walletPassword *string) bool {
 	}
 
 	for _, a := range w.accounts {
-		//if !a.checkIntegrity(key) {
-		//	return false
-		//}
-
 		if !a.checkSignature(pk) {
 			return false
 		}
@@ -442,7 +500,6 @@ func (w *Wallet)CheckIntegrity(walletPassword *string) bool {
 
 	return true
 }
-
 
 // Clears all accounts.
 func (w *Wallet)clearAccounts() {
@@ -810,6 +867,22 @@ func (w *Wallet)ChangePassword(password, newPassword *string) bool {
 	}
 
 	return true
+}
+
+func (w *Wallet)signAll(sk ed25519.PrivateKey) {
+	w.sign(sk)
+
+	for _, a := range w.accounts {
+		a.sign(sk)
+	}
+
+	for _, a := range w.assets {
+		a.sign(sk)
+	}
+
+	for _, tp := range w.tradingPairs {
+		tp.sign(sk)
+	}
 }
 
 func (w *Wallet)buildSigningData() []byte {
@@ -1397,7 +1470,7 @@ func (a* Account)checkConsistency(key []byte) bool {
 	}
 
 	switch a.accountType {
-	case AccountTypeSEP0005
+	case AccountTypeSEP0005:
 		seed := a.wallet.decryptBip39Seed(key)
 		defer EraseByteBuffer(seed)
 
@@ -1734,6 +1807,18 @@ func (a *Asset)isSigned() bool {
 	return a.wallet.isFlagSet(WalletFlagSignAssets)
 }
 
+func (a *Asset)checkConsistency() bool {
+	if !CheckPublicKey(a.issuer) {
+		return false
+	}
+
+	if CheckAssetId(a.assetId) != nil {
+		return false
+	}
+
+	return true
+}
+
 func (a *Asset)buildSigningData() []byte {
 
 	if a.isSigned() {
@@ -1744,10 +1829,8 @@ func (a *Asset)buildSigningData() []byte {
 
 		if a.wallet.isFlagSet(WalletFlagSignDescription) {
 			d = append(d, a.desc...)
-			d = append(d, 0)
-		} else {
-			d = append(d, 0)
 		}
+		d = append(d, 0)
 
 		return d
 	}
@@ -1854,6 +1937,22 @@ func (tp *TradingPair)init(wallet *Wallet) {
 	tp.asset1 = nil
 	tp.asset2 = nil
 	tp.signature = nil
+}
+
+func (tp *TradingPair)checkConsistency() bool {
+	if tp.asset1 == tp.asset2 {
+		return false
+	}
+
+	if tp.asset1 != nil && tp.asset1.wallet != tp.wallet {
+		return false
+	}
+
+	if tp.asset2 != nil && tp.asset2.wallet != tp.wallet {
+		return false
+	}
+
+	return true
 }
 
 func (tp *TradingPair)isSigned() bool {

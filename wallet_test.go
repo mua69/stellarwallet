@@ -7,6 +7,7 @@ import(
 	"encoding/hex"
 	"fmt"
 	"github.com/bartekn/go-bip39"
+	"github.com/stellar/go/exp/crypto/derivation"
 )
 
 
@@ -1823,12 +1824,16 @@ func compareWallets(t *testing.T, verbose bool, pw1, pw2 string, w1, w2 *Wallet)
 	}
 }
 
-func checkWalletIntegrity(t *testing.T, id string, w *Wallet, pw *string, mustFail bool) {
-	if w.CheckIntegrity(pw) != !mustFail {
+func checkWalletSignatures(t *testing.T, id string, w *Wallet, pw *string, mustFail bool) {
+	key := w.checkPassword(pw)
+	if key == nil {
+		t.Fatalf("%s: checkWalletSignatures: invalid password", id)
+	}
+	if w.checkSignatures(key) != !mustFail {
 		if mustFail {
-			t.Errorf("%s: Wallet integrity check unexpectedly passed", id)
+			t.Errorf("%s: Wallet signature check unexpectedly passed", id)
 		} else {
-			t.Errorf("%s: Wallet integrity check not passed", id)
+			t.Errorf("%s: Wallet signature check not passed", id)
 		}
 	}
 }
@@ -1860,72 +1865,72 @@ func testSignatures(t *testing.T, signPublicKeys, signDescription, signMemo, sig
 
 	w.SetDescription("wallet description", pw)
 
-	checkWalletIntegrity(t, "1", w, pw,false)
+	checkWalletSignatures(t, "1", w, pw,false)
 
 	s1 := w.flags
 	w.flags += 1
-	checkWalletIntegrity(t, "2", w, pw,true)
+	checkWalletSignatures(t, "2", w, pw,true)
 	w.flags = s1
-	checkWalletIntegrity(t, "3", w, pw,false)
+	checkWalletSignatures(t, "3", w, pw,false)
 
 	s2 := w.sep0005AccountCount
 	w.sep0005AccountCount += 1
-	checkWalletIntegrity(t, "4", w, pw,true)
+	checkWalletSignatures(t, "4", w, pw,true)
 	w.sep0005AccountCount = s2
-	checkWalletIntegrity(t, "5", w, pw,false)
+	checkWalletSignatures(t, "5", w, pw,false)
 
 	ss := w.desc
 	w.desc = "wrong"
-	checkWalletIntegrity(t, "6", w, pw,signDescription)
+	checkWalletSignatures(t, "6", w, pw,signDescription)
 	w.desc = ss
-	checkWalletIntegrity(t, "7", w, pw,false)
+	checkWalletSignatures(t, "7", w, pw,false)
 
 	acc := w.GenerateAccount(pw)
-	checkWalletIntegrity(t, "8", w, pw,false)
+	checkWalletSignatures(t, "8", w, pw,false)
 
 	testAccountSignatures(t, "1", w, pw, acc, signPublicKeys, signDescription, signMemo)
 
 	seed := "SAEWIVK3VLNEJ3WEJRZXQGDAS5NVG2BYSYDFRSH4GKVTS5RXNVED5AX7"
 	acc = w.AddRandomAccount(&seed, pw)
-	checkWalletIntegrity(t, "9", w, pw,false)
+	checkWalletSignatures(t, "9", w, pw,false)
 
 	testAccountSignatures(t, "2", w, pw, acc, signPublicKeys, signDescription, signMemo)
 
 	acc = w.AddWatchingAccount("GDY47CJARRHHL66JH3RJURDYXAMIQ5DMXZLP3TDAUJ6IN2GUOFX4OJOC", pw)
-	checkWalletIntegrity(t, "10", w, pw,false)
+	checkWalletSignatures(t, "10", w, pw,false)
 
 	testAccountSignatures(t, "3", w, pw, acc, signPublicKeys, signDescription, signMemo)
 
 	acc = w.AddAddressBookAccount("GCLAQF5H5LGJ2A6ACOMNEHSWYDJ3VKVBUBHDWFGRBEPAVZ56L4D7JJID", pw)
-	checkWalletIntegrity(t, "11", w, pw,false)
+	checkWalletSignatures(t, "11", w, pw,false)
 
 	testAccountSignatures(t, "4", w, pw, acc, signPublicKeys, signDescription, signMemo)
 
 
 	// Assets
 	ass1 := w.AddAsset("GCUDW6ZF5SCGCMS3QUTELZ6LSAH6IVVXNRPRLAUNJ2XYLCA7KH7ZCVQS", "EURT", pw)
-	checkWalletIntegrity(t, "12", w, pw,false)
+	checkWalletSignatures(t, "12", w, pw,false)
 
 	ss = ass1.issuer
 	ass1.issuer = "wrong"
-	checkWalletIntegrity(t, "13", w, pw, signAsset)
+	checkWalletSignatures(t, "13", w, pw, signAsset)
 	ass1.issuer = ss
-	checkWalletIntegrity(t, "14", w, pw, false)
+	checkWalletSignatures(t, "14", w, pw, false)
 
 	ss = ass1.assetId
 	ass1.assetId = "wrong"
-	checkWalletIntegrity(t, "15", w, pw, signAsset)
+	checkWalletSignatures(t, "15", w, pw, signAsset)
 	ass1.assetId = ss
-	checkWalletIntegrity(t, "16", w, pw, false)
+	checkWalletSignatures(t, "16", w, pw, false)
 
 	ass1.SetDescription("asset description", pw)
-	checkWalletIntegrity(t, "17", w, pw, false)
+	checkWalletSignatures(t, "17", w, pw, false)
 
 	ss = ass1.desc
 	ass1.desc = "wrong"
-	checkWalletIntegrity(t, "18", w, pw, signAsset&&signDescription)
+	checkWalletSignatures(t, "18", w, pw, signAsset&&signDescription)
 	ass1.desc = ss
-	checkWalletIntegrity(t, "19", w, pw, false)
+	checkWalletSignatures(t, "19", w, pw, false)
 
 	// Trading Pair
 	ass2 := w.AddAsset("GBJ646Q524WGBN5X5NOAPIF5VQCR2WZCN6QZIDOSY6VA2PMHJ2X636G4", "BTC", pw)
@@ -1946,88 +1951,88 @@ func testSignatures(t *testing.T, signPublicKeys, signDescription, signMemo, sig
 
 func testAccountSignatures(t *testing.T, id string, w *Wallet, pw *string, a* Account, signed, signDescription, signMemo bool) {
 	a.SetDescription("account description", pw)
-	checkWalletIntegrity(t, id+".1", w, pw,false)
+	checkWalletSignatures(t, id+".1", w, pw,false)
 	ss := a.desc
 	a.desc = "wrong"
-	checkWalletIntegrity(t, id+".2", w, pw, signed&&signDescription)
+	checkWalletSignatures(t, id+".2", w, pw, signed&&signDescription)
 	a.desc = ss
 
 	a.SetMemoText("memo", pw)
-	checkWalletIntegrity(t, id+".3", w, pw,false)
+	checkWalletSignatures(t, id+".3", w, pw,false)
 	ss = a.memoText
 	a.memoText = "wrong"
-	checkWalletIntegrity(t, id+".4", w, pw, signed&&signMemo)
+	checkWalletSignatures(t, id+".4", w, pw, signed&&signMemo)
 	a.memoText = ss
 
 	a.SetMemoId(1, pw)
-	checkWalletIntegrity(t, id+".5", w, pw,false)
+	checkWalletSignatures(t, id+".5", w, pw,false)
 	a.memoId = 2
-	checkWalletIntegrity(t, id+".6", w, pw, signed&&signMemo)
+	checkWalletSignatures(t, id+".6", w, pw, signed&&signMemo)
 	a.memoId = 1
 
 	a.ClearMemoId(pw)
-	checkWalletIntegrity(t, id+".7", w, pw,false)
+	checkWalletSignatures(t, id+".7", w, pw,false)
 	a.memoIdSet = true
-	checkWalletIntegrity(t, id+".8", w, pw, signed&&signMemo)
+	checkWalletSignatures(t, id+".8", w, pw, signed&&signMemo)
 	a.memoIdSet = false
 
 	ss = a.publicKey
 	a.publicKey = "wrong"
-	checkWalletIntegrity(t, id+".9", w, pw, signed)
+	checkWalletSignatures(t, id+".9", w, pw, signed)
 	a.publicKey = ss
-	checkWalletIntegrity(t, id+".10", w, pw,false)
+	checkWalletSignatures(t, id+".10", w, pw,false)
 
 	a.accountType += 1
-	checkWalletIntegrity(t, id+".11", w, pw, signed)
+	checkWalletSignatures(t, id+".11", w, pw, signed)
 	a.accountType -= 1
-	checkWalletIntegrity(t, id+".12", w, pw,false)
+	checkWalletSignatures(t, id+".12", w, pw,false)
 
 	if a.accountType == AccountTypeSEP0005 {
 		ss = a.sep0005DerivationPath
 		a.sep0005DerivationPath = "wrong"
-		checkWalletIntegrity(t, id+".13", w, pw, signed)
+		checkWalletSignatures(t, id+".13", w, pw, signed)
 		a.sep0005DerivationPath = ss
-		checkWalletIntegrity(t, id+".14", w, pw, false)
+		checkWalletSignatures(t, id+".14", w, pw, false)
 	}
 }
 
 func testTradingPairSignatures(t *testing.T, id string, w *Wallet, pw *string, tp* TradingPair, signed, signDescription bool) {
 	tp.SetDescription("account description", pw)
-	checkWalletIntegrity(t, id+".1", w, pw,false)
+	checkWalletSignatures(t, id+".1", w, pw,false)
 	ss := tp.desc
 	tp.desc = "wrong"
-	checkWalletIntegrity(t, id+".2", w, pw, signed&&signDescription)
+	checkWalletSignatures(t, id+".2", w, pw, signed&&signDescription)
 	tp.desc = ss
 
 	a := w.AddAsset("GBOSMFQYKWFDHJWCMCZSMGUMWCZOM4KFMXXS64INDHVCJ2A2JAABCYRR", "COD1", pw)
 
-	checkWalletIntegrity(t, id+".3", w, pw,false)
+	checkWalletSignatures(t, id+".3", w, pw,false)
 
 	if tp.asset1 == nil {
 		tp.asset1 = a
-		checkWalletIntegrity(t, id+".4", w, pw, signed)
+		checkWalletSignatures(t, id+".4", w, pw, signed)
 		tp.asset1 = nil
 	} else {
 		sa := tp.asset1
 		tp.asset1 = nil
-		checkWalletIntegrity(t, id+".5", w, pw, signed)
+		checkWalletSignatures(t, id+".5", w, pw, signed)
 		tp.asset1 = sa
 	}
 
-	checkWalletIntegrity(t, id+".6", w, pw,false)
+	checkWalletSignatures(t, id+".6", w, pw,false)
 
 	if tp.asset2 == nil {
 		tp.asset2 = a
-		checkWalletIntegrity(t, id+".7", w, pw, signed)
+		checkWalletSignatures(t, id+".7", w, pw, signed)
 		tp.asset2 = nil
 	} else {
 		sa := tp.asset2
 		tp.asset2 = nil
-		checkWalletIntegrity(t, id+".8", w, pw, signed)
+		checkWalletSignatures(t, id+".8", w, pw, signed)
 		tp.asset2 = sa
 	}
 
-	checkWalletIntegrity(t, id+".9", w, pw,false)
+	checkWalletSignatures(t, id+".9", w, pw,false)
 }
 
 
@@ -2054,6 +2059,120 @@ func TestSignatures5(t *testing.T) {
 
 func TestSignatures6(t *testing.T) {
 	testSignatures(t, true, true, true, true, true)
+}
+
+func TestSignatures7(t *testing.T) {
+	pw := "password1234"
+
+	w := createWallet1(t, pw)
+
+	w.SetFlags(WalletFlagSignAccounts, &pw)
+	checkWalletSignatures(t, "1", w, &pw, false)
+
+	w.SetFlags(WalletFlagSignAccounts|WalletFlagSignDescription, &pw)
+	checkWalletSignatures(t, "2", w, &pw, false)
+
+	w.SetFlags(WalletFlagSignAccounts|WalletFlagSignAccountMemo, &pw)
+	checkWalletSignatures(t, "3", w, &pw, false)
+
+	w.SetFlags(WalletFlagSignAccounts|WalletFlagSignDescription|WalletFlagSignDescription, &pw)
+	checkWalletSignatures(t, "4", w, &pw, false)
+
+	w.SetFlags(WalletFlagSignAssets, &pw)
+	checkWalletSignatures(t, "5", w, &pw, false)
+
+	w.SetFlags(WalletFlagSignAssets|WalletFlagSignDescription, &pw)
+	checkWalletSignatures(t, "6", w, &pw, false)
+
+	w.SetFlags(WalletFlagSignTradingPairs, &pw)
+	checkWalletSignatures(t, "7", w, &pw, false)
+
+	w.SetFlags(WalletFlagSignTradingPairs|WalletFlagSignDescription, &pw)
+	checkWalletSignatures(t, "8", w, &pw, false)
+}
+
+func checkWalletConsistency(t *testing.T, id string, w *Wallet, pw *string, mustFail bool) {
+	key := w.checkPassword(pw)
+	if key == nil {
+		t.Fatalf("%s: checkWalletConsistency: invalid password", id)
+	}
+	if w.checkConsistency(key) != !mustFail {
+		if mustFail {
+			t.Errorf("%s: Wallet consistency check unexpectedly passed", id)
+		} else {
+			t.Errorf("%s: Wallet consistency check not passed", id)
+		}
+	}
+}
+
+func TestConsistency1(t *testing.T) {
+	s := "pw12398slgorpe"
+	pw := &s
+
+	words := strings.Split("merge silver adult unusual dilemma air winner safe smile region oil maximum gorilla process link aspect spoon junk crowd employ fury case join one", " ")
+
+	w := NewWalletFromMnemonic(0, pw, words, pw)
+
+	a := w.GenerateAccount(pw)
+	checkWalletConsistency(t, "1", w, pw, false)
+	s1 := a.publicKey
+	a.publicKey = "GBOSMFQYKWFDHJWCMCZSMGUMWCZOM4KFMXXS64INDHVCJ2A2JAABCYRR"
+	checkWalletConsistency(t, "2", w, pw, true)
+	a.publicKey = s1
+	checkWalletConsistency(t, "3", w, pw, false)
+	s1 = a.sep0005DerivationPath
+	a.sep0005DerivationPath = fmt.Sprintf(derivation.StellarAccountPathFormat, 99)
+	checkWalletConsistency(t, "4", w, pw, true)
+	a.sep0005DerivationPath = s1
+	checkWalletConsistency(t, "5", w, pw, false)
+
+	s1 = "SDA4QBYTQFXP2CWUSBBEX22RWQAYIJEBQSAO6QNO4LASTFE2JCVUVROJ"
+	a = w.AddRandomAccount(&s1, pw)
+	checkWalletConsistency(t, "6", w, pw, false)
+	s1 = a.publicKey
+	a.publicKey = "GBOSMFQYKWFDHJWCMCZSMGUMWCZOM4KFMXXS64INDHVCJ2A2JAABCYRR"
+	checkWalletConsistency(t, "7", w, pw, true)
+	a.publicKey = s1
+	checkWalletConsistency(t, "8", w, pw, false)
+
+	a = w.AddWatchingAccount("GAOOWGZIMGN3HGKMAX4WLCEDUEBWLZWCJVCXEJN7BB4BREJ6N3PFA5HZ", nil)
+	checkWalletConsistency(t, "9", w, pw, false)
+	s1 = a.publicKey
+	a.publicKey = "wrong"
+	checkWalletConsistency(t, "10", w, pw, true)
+	a.publicKey = s1
+	checkWalletConsistency(t, "11", w, pw, false)
+
+	a = w.AddAddressBookAccount("GBOSMFQYKWFDHJWCMCZSMGUMWCZOM4KFMXXS64INDHVCJ2A2JAABCYRR", nil)
+	checkWalletConsistency(t, "12", w, pw, false)
+	s1 = a.publicKey
+	a.publicKey = "wrong"
+	checkWalletConsistency(t, "13", w, pw, true)
+	a.publicKey = s1
+	checkWalletConsistency(t, "14", w, pw, false)
+
+
+	as := w.AddAsset("GAOOWGZIMGN3HGKMAX4WLCEDUEBWLZWCJVCXEJN7BB4BREJ6N3PFA5HZ", "EUR", nil)
+	checkWalletConsistency(t, "15", w, pw, false)
+	s1 = as.issuer
+	as.issuer = "wrong"
+	checkWalletConsistency(t, "16", w, pw, true)
+	as.issuer = s1
+	checkWalletConsistency(t, "17", w, pw, false)
+	s1 = as.assetId
+	as.assetId = ""
+	checkWalletConsistency(t, "18", w, pw, true)
+	as.assetId = "too long too long"
+	checkWalletConsistency(t, "19", w, pw, true)
+	as.assetId = s1
+	checkWalletConsistency(t, "20", w, pw, false)
+
+	tp := w.AddTradingPair(as, nil, nil)
+	checkWalletConsistency(t, "21", w, pw, false)
+	tp.asset1 = nil
+	checkWalletConsistency(t, "22", w, pw, true)
+	tp.asset1 = as
+	checkWalletConsistency(t, "23", w, pw, false)
 }
 
 func TestIO1(t *testing.T) {
