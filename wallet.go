@@ -26,8 +26,10 @@ import(
 
 	//"encoding/hex"
 
+	"encoding/binary"
 )
 
+const walletVersion = 1
 
 const stellarwalletSeed = "sellarwallet seed"
 
@@ -41,6 +43,20 @@ const AccountTypeRandom = 2  // Account is based on a randomly generated key
 const AccountTypeWatching = 3 // Account has a public key only 
 const AccountTypeAddressBook = 4 // Account is an address book entry (public key only) 
 
+const WalletFlagSignDescription = 1<<0
+const WalletFlagSignAccounts = 1<<1
+const WalletFlagSignAccountMemo = 1<<2
+const WalletFlagSignAssets = 1<<3
+const WalletFlagSignTradingPairs = 1<<4
+const WalletFlagSignAll = WalletFlagSignDescription|WalletFlagSignAccounts|WalletFlagSignAccountMemo|WalletFlagSignAssets|WalletFlagSignTradingPairs
+const WalletFlagAll = WalletFlagSignDescription|WalletFlagSignAccounts|WalletFlagSignAccountMemo|WalletFlagSignAssets|WalletFlagSignTradingPairs
+
+
+
+type WalletFlags uint64
+
+// error returned for invalid password
+var ErrorInvalidPassword = errors.New("invalid password")
 
 type Account struct {
 	wallet *Wallet
@@ -53,6 +69,8 @@ type Account struct {
 	memoText string
 	memoId uint64
 	memoIdSet bool
+
+	signature []byte
 }
 
 type Asset struct {
@@ -63,6 +81,8 @@ type Asset struct {
 	desc string
 	issuer string
 	assetId string
+
+	signature []byte
 }	
 
 type TradingPair struct {
@@ -72,32 +92,36 @@ type TradingPair struct {
 	desc string
 	asset1 *Asset
 	asset2 *Asset
+
+	signature []byte
 }
 
 type Wallet struct {
+	flags WalletFlags  		// wallet flags
 	desc string
 
-	masterSeed []byte
-
-	bip39Seed []byte
+	masterSeed []byte    // 256bit entropy
+	bip39Seed []byte     // derived from masterSeed and mnemonic password
 
 	sep0005AccountCount uint16
 
-	accounts []Account
+	accounts []*Account
 	assets []*Asset
 	tradingPairs []*TradingPair
+
+	signature []byte
 }
 
 var (
-	g_selfTestDone = false
-	g_selfTestStatus error
+	gSelfTestDone = false
+	gSelfTestStatus error
 
 )
 
 // EraseByteBuffer wipes content of given byte buffer.
 func EraseByteBuffer(b []byte) {
 	if b != nil {
-		for i, _ := range b {
+		for i := range b {
 			b[i] = 0
 		}
 	}
@@ -177,16 +201,31 @@ func CheckMnemonicWord(s string) bool {
 	return found
 }
 
+func checkWalletFlags(flags WalletFlags) {
+	var validFlags WalletFlags
+
+	validFlags = WalletFlagAll
+
+	if (flags & ^validFlags) != 0 {
+		panic("Invalid wallet flags")
+	}
+}
+
 // NewWallet creates a new empty wallet, encrypted with given password.
 // Each new wallet has an associated encrypted 256 bit entropy, which is the source for the mnemonic words list,
 // i.e. the mnemonic word list is defined when a new wallet is created.
+// This method panics if invalid wallet flags are given.
 // This method panics if the build-in self test fails (see method SelfTest()).
-func NewWallet(password *string) *Wallet {
+func NewWallet(flags WalletFlags, password *string) *Wallet {
 	if err := SelfTest(); err != nil {
 		panic(err.Error())
 	}
 
+	checkWalletFlags(flags)
+
 	wallet := new(Wallet)
+
+	wallet.flags = flags
 
 	entropy, err := bip39.NewEntropy(256)
 	
@@ -197,6 +236,10 @@ func NewWallet(password *string) *Wallet {
 	key := deriveAesKey(password)
 
 	wallet.encryptMasterSeed(entropy, key)
+
+	sk := wallet.deriveSigningKey(key)
+	wallet.sign(sk)
+	EraseByteBuffer(sk)
 
 	EraseByteBuffer(entropy)
 	EraseByteBuffer(key)
@@ -210,12 +253,16 @@ func NewWallet(password *string) *Wallet {
 // An invalid mnemonic password is not detected so that it cannot be reported to the user. If a wrong mnemonic password is provided,
 // another set of account seeds will be generated and the user will not see his funds.  
 // This method panics if the build-in self test fails (see method SelfTest()).
-func NewWalletFromMnemonic(walletPassword *string, mnemonic []string, mnemonicPassword *string) *Wallet {
+func NewWalletFromMnemonic(flags WalletFlags, walletPassword *string, mnemonic []string, mnemonicPassword *string) *Wallet {
 	if err := SelfTest(); err != nil {
 		panic(err.Error())
 	}
 
+	checkWalletFlags(flags)
+
 	w := new(Wallet)
+
+	w.flags = flags
 
 	key := deriveAesKey(walletPassword)
 	defer EraseByteBuffer(key)
@@ -234,6 +281,10 @@ func NewWalletFromMnemonic(walletPassword *string, mnemonic []string, mnemonicPa
 		return nil
 	}
 
+	sk := w.deriveSigningKey(key)
+	w.sign(sk)
+	EraseByteBuffer(sk)
+
 	return w
 }
 
@@ -244,15 +295,21 @@ func NewWalletFromMnemonic(walletPassword *string, mnemonic []string, mnemonicPa
 // checks on the Stellar network if the given account is funded and returns true in case.
 // maxGap defines the maximum number of unfunded accounts being accepted until the search stops.
 func (w *Wallet) RecoverAccounts(walletPassword *string, maxGap uint16, fundedCheck func (adr string) bool) {
+	key := w.checkPassword(walletPassword)
+
+	if key == nil {
+		return // invalid password
+	}
+
+	defer EraseByteBuffer(key)
+
+	sk := w.deriveSigningKey(key)
+	defer EraseByteBuffer(sk)
 
 	var lastFound = w.sep0005AccountCount
 
 	for {
-		a := w.GenerateAccount(walletPassword)
-		if a == nil {
-			// can happen if invalid wallet password is provided
-			return
-		}
+		a := w.generateAccount(key, sk)
 
 		if fundedCheck(a.PublicKey()) {
 			lastFound = w.sep0005AccountCount
@@ -266,6 +323,8 @@ func (w *Wallet) RecoverAccounts(walletPassword *string, maxGap uint16, fundedCh
 	}
 
 	w.sep0005AccountCount = lastFound
+
+	w.sign(sk)
 }
 
 // ImportBinary creates a new wallet from an exported binary serialization of the wallet content.
@@ -328,6 +387,120 @@ func (w *Wallet)ExportBase64() string {
 	}
 }
 
+// Flags returns the currently set wallet flags.
+func (w *Wallet)Flags() WalletFlags {
+	return w.flags
+}
+
+// SetFlags sets new wallet flags.
+// walletPassword is required to re-build the signatures.
+// This function panics if invalid wallet flags are given.
+// Return false if an invalid wallet password was given.
+func (w *Wallet)SetFlags(flags WalletFlags, walletPassword *string) bool {
+	checkWalletFlags(flags)
+
+	key := w.checkPassword(walletPassword)
+	if key == nil {
+		return false
+	}
+	defer EraseByteBuffer(key)
+
+	sk := w.deriveSigningKey(key)
+	defer EraseByteBuffer(sk)
+	w.flags = flags
+
+	w.signAll(sk)
+
+	return true
+}
+
+
+// Returns true if specified wallet flag is set.
+func (w *Wallet)isFlagSet(flag WalletFlags) bool {
+	if (w.flags&flag) != 0 {
+		return true
+	}
+	return false
+}
+
+// CheckIntegrity verifies the consistency of the wallet data and ensures that
+// the not encrypted data of the wallet has not been modified (e.g. by an attacker).
+// Returns true on successful integrity verification, else false.
+// If the given walletPassword is invalid, false will be returned as well.
+func (w *Wallet)CheckIntegrity(walletPassword *string) bool {
+
+	key := w.checkPassword(walletPassword)
+	if key == nil {
+		return false
+	}
+	defer EraseByteBuffer(key)
+
+	if !w.checkConsistency(key) {
+		return false
+	}
+
+	if !w.checkSignatures(key) {
+		return false
+	}
+	return true
+}
+
+func (w *Wallet)checkConsistency(key []byte) bool {
+	for _, a := range w.accounts {
+		if !a.checkConsistency(key) {
+			return false
+		}
+	}
+
+	for _, a := range w.assets {
+		if !a.checkConsistency() {
+			return false
+		}
+	}
+
+	for _, tp := range w.tradingPairs {
+		if !tp.checkConsistency() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (w *Wallet)checkSignatures(key []byte) bool {
+	sk := w.deriveSigningKey(key)
+	if  sk == nil {
+		return false
+	}
+	defer EraseByteBuffer(sk)
+
+	pk := sk.Public().(ed25519.PublicKey)
+
+	if !w.checkSignature(pk) {
+		return false
+	}
+
+	for _, a := range w.accounts {
+		if !a.checkSignature(pk) {
+			return false
+		}
+	}
+
+	for _, a := range w.assets {
+		if !a.checkSignature(pk) {
+			return false
+		}
+	}
+
+	for _, tp := range w.tradingPairs {
+		if !tp.checkSignature(pk) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Clears all accounts.
 func (w *Wallet)clearAccounts() {
 	for _, a := range w.accounts {
@@ -343,16 +516,44 @@ func (w *Wallet)Description() string {
 	return w.desc
 }
 
-// SetDescription sets wallet description. Error is returned if given string does not pass the description check.
-func (w *Wallet)SetDescription(desc string) error {
-	err := CheckDescription(desc)
-	if err != nil {
+// SetDescription sets wallet description.
+// walletPassword is required only if wallet flag WalletFlagSignDescription is set in order to sign the description
+// text, otherwise it is ignored.
+// Error is returned if given string does not pass the valid description check or an invalid wallet password was given.
+func (w *Wallet)SetDescription(desc string, walletPassword *string) error {
+	if err := CheckDescription(desc); err != nil {
 		return err
 	}
 
-	w.desc = desc
+	if w.isFlagSet(WalletFlagSignDescription) {
+		if sk := w.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+			w.desc = desc
+			w.sign(sk)
+		} else {
+			return ErrorInvalidPassword
+		}
+	} else {
+		w.desc = desc
+	}
 
 	return nil
+}
+
+// Derive ED25519 key for signing wallet entries.
+func (w *Wallet)deriveSigningKey(key []byte) ed25519.PrivateKey {
+	seed := w.decryptMasterSeed(key)
+	defer EraseByteBuffer(seed)
+	return ed25519.NewKeyFromSeed(seed)
+}
+
+func (w *Wallet)deriveSigningKeyPassword(walletPassword *string) ed25519.PrivateKey {
+	if key := w.checkPassword(walletPassword); key != nil {
+		defer EraseByteBuffer(key)
+		return w.deriveSigningKey(key)
+	} else {
+		return nil
+	}
 }
 
 // Create AES key from given password string
@@ -528,6 +729,10 @@ func (w *Wallet)decryptMasterSeed(key []byte) []byte {
 // Checks if given wallet password is valid.
 // Returns derived AES key on success else nil
 func (w *Wallet)checkPassword(walletPassword *string) []byte {
+	if walletPassword == nil {
+		return nil
+	}
+
 	key := deriveAesKey(walletPassword)
 
 	seed := w.decryptMasterSeed(key)
@@ -650,9 +855,7 @@ func (w *Wallet)ChangePassword(password, newPassword *string) bool {
 		w.encryptBip39Seed(bip39Seed, newKey)
 	}
 
-	for i, _ := range w.accounts {
-		a := &w.accounts[i]
-
+	for _, a := range w.accounts {
 		if a.active && a.accountType == AccountTypeRandom {
 			pkey := decryptAccountSeed(a.privateKey, key)
 			if pkey == nil {
@@ -666,20 +869,57 @@ func (w *Wallet)ChangePassword(password, newPassword *string) bool {
 	return true
 }
 
+func (w *Wallet)signAll(sk ed25519.PrivateKey) {
+	w.sign(sk)
+
+	for _, a := range w.accounts {
+		a.sign(sk)
+	}
+
+	for _, a := range w.assets {
+		a.sign(sk)
+	}
+
+	for _, tp := range w.tradingPairs {
+		tp.sign(sk)
+	}
+}
+
+func (w *Wallet)buildSigningData() []byte {
+	d := make([]byte, 10, len(w.desc) + 10)
+
+	binary.BigEndian.PutUint64(d[0:8], uint64(w.flags))
+	binary.BigEndian.PutUint16(d[8:10], w.sep0005AccountCount)
+
+	if w.isFlagSet(WalletFlagSignDescription) {
+		d = append(d, w.desc...)
+	}
+
+	return d
+}
+
+func (w *Wallet)sign(sk ed25519.PrivateKey) {
+	d := w.buildSigningData()
+	w.signature = ed25519.Sign(sk, d)
+}
+
+func (w *Wallet)checkSignature(pk ed25519.PublicKey) bool {
+	d := w.buildSigningData()
+	return ed25519.Verify(pk, d, w.signature)
+}
+
 func (w *Wallet)newAccount() *Account {
-	for i, _ := range w.accounts {
-		a := &w.accounts[i]
+	for _, a := range w.accounts {
 		if !a.active {
 			a.init(w)
 			return a
 		}
 	}
 
-	w.accounts = append(w.accounts, Account{})
-
-	a := &w.accounts[len(w.accounts)-1]
-
+	a := new(Account)
 	a.init(w)
+
+	w.accounts = append(w.accounts, a)
 
 	return a
 }
@@ -689,17 +929,24 @@ func (w *Wallet)newAccount() *Account {
 // Before this method can be used, method GenerateBip39Seed() must have been called before once.
 // nil is returned if GenerateBip39Seed() was not called before or the wallet password is not valid.
 func (w *Wallet)GenerateAccount(walletPassword *string) *Account {
-	if w.bip39Seed == nil {
-		return nil
-	}
-
 	wkey := w.checkPassword(walletPassword)
 
 	if wkey == nil {
 		return nil
 	}
 	defer EraseByteBuffer(wkey)
-	
+
+	sk := w.deriveSigningKey(wkey)
+	defer EraseByteBuffer(sk)
+
+	return w.generateAccount(wkey, sk)
+}
+
+func (w *Wallet)generateAccount(wkey []byte, signingKey ed25519.PrivateKey) *Account {
+	if w.bip39Seed == nil {
+		return nil
+	}
+
 	seed := w.decryptBip39Seed(wkey)
 
 	if seed == nil {
@@ -710,8 +957,6 @@ func (w *Wallet)GenerateAccount(walletPassword *string) *Account {
 	a := w.newAccount()
 
 	p := fmt.Sprintf(derivation.StellarAccountPathFormat, w.sep0005AccountCount)
-
-	w.sep0005AccountCount++
 
 	var k, pk []byte
 	var err error
@@ -745,7 +990,11 @@ func (w *Wallet)GenerateAccount(walletPassword *string) *Account {
 		panic(err)
 	}
 
+	a.sign(signingKey)
 	a.active = true
+
+	w.sep0005AccountCount++
+	w.sign(signingKey)
 
 	return a
 }
@@ -759,18 +1008,13 @@ func decryptAccountSeed(encSeed, key []byte) []byte {
 }	
 
 func derivePublicKey( seed []byte ) []byte {
-	var prev, pub []byte
-	var err error
+	var prev, pub ed25519.PublicKey
 
 	for i := 0; i < 5; i++ {
 		prev = pub
 
-		reader := bytes.NewReader(seed)
-		pub, _, err = ed25519.GenerateKey(reader)
-		if err != nil {
-			panic(err)
-		}
-
+		pub = ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
+		
 		if prev != nil && bytes.Compare(prev, pub) != 0 {
 			panic("calculation error")
 		}
@@ -784,18 +1028,21 @@ func derivePublicKey( seed []byte ) []byte {
 // recovered with the mnemonic word list and password.
 // nil is returend if the wallet password is invalid or an invald seed string was provided.
 func (w *Wallet)AddRandomAccount(seed *string, walletPassword *string) *Account {
+	seedData, err := strkey.Decode(strkey.VersionByteSeed, *seed)
+	if err != nil {
+		return nil
+	}
+	defer EraseByteBuffer(seedData)
+
 	key := w.checkPassword(walletPassword)
 
 	if key == nil {
 		return nil
 	}
 	defer EraseByteBuffer(key)
-	
-	seedData, err := strkey.Decode(strkey.VersionByteSeed, *seed)
-	if err != nil {
-		return nil
-	}
-	defer EraseByteBuffer(seedData)
+
+	sk := w.deriveSigningKey(key)
+	defer EraseByteBuffer(sk)
 
 	encSeed := encryptAccountSeed(seedData, key)
 
@@ -811,6 +1058,7 @@ func (w *Wallet)AddRandomAccount(seed *string, walletPassword *string) *Account 
 		panic(err)
 	}
 
+	a.sign(sk)
 	a.active = true
 
 	return a
@@ -819,8 +1067,9 @@ func (w *Wallet)AddRandomAccount(seed *string, walletPassword *string) *Account 
 // AddWatchingAccount adds a watching account and return a new Account object for it.
 // Watching accounts just store the public account key.
 // Watching accounts are treated as "own" accounts - in contrast to address book accounts.
-// nil is returned if the given public key string is not valid.
-func (w *Wallet)AddWatchingAccount(pubkey string) *Account {
+// walletPassword is required only if public key signing is selected in the wallet flags, otherwise it is ignored.
+// nil is returned if the given public key string is not valid or an invalid wallet password was given.
+func (w *Wallet)AddWatchingAccount(pubkey string, walletPassword *string) *Account {
 
 	if !CheckPublicKey(pubkey) {
 		return nil
@@ -832,10 +1081,22 @@ func (w *Wallet)AddWatchingAccount(pubkey string) *Account {
 		return nil
 	}
 
+	var sk ed25519.PrivateKey
+
+	if w.isFlagSet(WalletFlagSignAccounts) {
+		if sk = w.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+		} else {
+			return nil
+		}
+	}
+
 	a = w.newAccount()
 
 	a.accountType = AccountTypeWatching
 	a.publicKey = pubkey
+
+	a.sign(sk)
 
 	a.active = true
 	
@@ -845,8 +1106,9 @@ func (w *Wallet)AddWatchingAccount(pubkey string) *Account {
 // AddAddressBookAccount adds an address book account and return a new Account object for it.
 // Address book accounts just store the public account key.
 // Address book accounts are treated as "foreign" accounts - in contrast to watching accounts.
-// nil is returned if the given public key string is not valid.
-func (w *Wallet)AddAddressBookAccount(pubkey string) *Account {
+// walletPassword is required only if public key signing is selected in the wallet flags, otherwise it is ignored.
+// nil is returned if the given public key string is not valid or an invalid wallet password was given.
+func (w *Wallet)AddAddressBookAccount(pubkey string, walletPassword *string) *Account {
 
 	if !CheckPublicKey(pubkey) {
 		return nil
@@ -858,10 +1120,22 @@ func (w *Wallet)AddAddressBookAccount(pubkey string) *Account {
 		return nil
 	}
 
+	var sk ed25519.PrivateKey
+
+	if w.isFlagSet(WalletFlagSignAccounts) {
+		if sk = w.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+		} else {
+			return nil
+		}
+	}
+
 	a = w.newAccount()
 
 	a.accountType = AccountTypeAddressBook
 	a.publicKey = pubkey
+
+	a.sign(sk)
 
 	a.active = true
 	
@@ -882,9 +1156,9 @@ func (w *Wallet)DeleteAccount(acc *Account) bool {
 // If not matching account is found, nil is returned.
 func (w *Wallet)FindAccountByPublicKey(pubkey string) *Account {
 
-	for i, _ := range w.accounts {
-		if w.accounts[i].active &&  w.accounts[i].publicKey == pubkey {
-			return &w.accounts[i]
+	for _, a := range w.accounts {
+		if a.active &&  a.publicKey == pubkey {
+			return a
 		}
 	}
 
@@ -898,10 +1172,10 @@ func (w *Wallet)FindAccountByPublicKey(pubkey string) *Account {
 func (w *Wallet)FindAccountByDescription(desc string) *Account {
 	desc = strings.ToLower(desc)
 
-	for i, _ := range w.accounts {
-		if w.accounts[i].active {
-			if strings.Contains(strings.ToLower(w.accounts[i].desc), desc) {
-				return &w.accounts[i]
+	for _, a := range w.accounts {
+		if a.active {
+			if strings.Contains(strings.ToLower(a.desc), desc) {
+				return a
 			}
 		}
 	}
@@ -914,9 +1188,9 @@ func (w *Wallet)FindAccountByDescription(desc string) *Account {
 func (w *Wallet)Accounts() []*Account {
 	accounts := make([]*Account, 0, len(w.accounts))
 
-	for i, _ := range w.accounts {
-		if w.accounts[i].active && w.accounts[i].IsOwnAccount() {
-			accounts = append(accounts, &w.accounts[i])
+	for _, a := range w.accounts {
+		if a.active && a.IsOwnAccount() {
+			accounts = append(accounts, a)
 		}
 	}
 
@@ -924,13 +1198,13 @@ func (w *Wallet)Accounts() []*Account {
 }
 
 // SeedAccounts returns a slice containing all accounts with a private key,
-//  i.e. generated and random accounts.
+// i.e. generated and random accounts.
 func (w *Wallet)SeedAccounts() []*Account {
 	accounts := make([]*Account, 0, len(w.accounts))
 
-	for i, _ := range w.accounts {
-		if w.accounts[i].active && w.accounts[i].HasPrivateKey() {
-			accounts = append(accounts, &w.accounts[i])
+	for _, a := range w.accounts {
+		if a.active && a.HasPrivateKey() {
+			accounts = append(accounts, a)
 		}
 	}
 
@@ -941,9 +1215,9 @@ func (w *Wallet)SeedAccounts() []*Account {
 func (w *Wallet)AddressBook() []*Account {
 	accounts := make([]*Account, 0, len(w.accounts))
 
-	for i, _ := range w.accounts {
-		if w.accounts[i].active && w.accounts[i].IsAddressBookAccount() {
-			accounts = append(accounts, &w.accounts[i])
+	for _, a := range w.accounts {
+		if a.active && a.IsAddressBookAccount() {
+			accounts = append(accounts, a)
 		}
 	}
 
@@ -1006,9 +1280,10 @@ func (w *Wallet)newAsset() *Asset {
 }
 
 // AddAsset creates a new asset and returns a Asset object for it.
+// walletPassword is required only if asset signing is selected in the wallet flags, otherwise it is ignored.
 // nil is returned if the given issues string is not a valid public account key or
 // if the given assetId is not valid.
-func (w *Wallet)AddAsset(issuer, assetId string) *Asset {
+func (w *Wallet)AddAsset(issuer, assetId string, walletPassword *string) *Asset {
 	if !CheckPublicKey(issuer) {
 		return nil
 	}
@@ -1024,10 +1299,21 @@ func (w *Wallet)AddAsset(issuer, assetId string) *Asset {
 		return a
 	}
 
+	var sk ed25519.PrivateKey
+
+	if w.isFlagSet(WalletFlagSignAssets) {
+		if sk = w.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+		} else {
+			return nil
+		}
+	}
+
 	a = w.newAsset()
 
 	a.issuer = issuer
 	a.assetId = assetId
+	a.sign(sk)
 	a.active = true
 
 	return a
@@ -1079,9 +1365,11 @@ func (w *Wallet)FindTradingPair(asset1, asset2 *Asset) *TradingPair {
 } 
 
 // AddTradingPair adds a new trading pair to the wallet. If a trading pair for the given assets is already defined, the existing pair is returned.
-// The native Lumen is represented by a nil asset. 
-// For following error conditions nil is returned: assets do not belong to current wallet, assets as identical 
-func (w *Wallet)AddTradingPair(asset1, asset2 *Asset) *TradingPair {
+// The native Lumen is represented by a nil asset.
+// walletPassword is required only if asset signing is selected in the wallet flags, otherwise it is ignored.
+// For following error conditions nil is returned: assets do not belong to current wallet, assets are identical,
+// invalid wallet password
+func (w *Wallet)AddTradingPair(asset1, asset2 *Asset, walletPassword *string) *TradingPair {
 	if asset1 != nil && asset1.wallet != w {
 		return nil
 	}
@@ -1100,6 +1388,17 @@ func (w *Wallet)AddTradingPair(asset1, asset2 *Asset) *TradingPair {
 		return tp
 	}
 
+	var sk ed25519.PrivateKey
+
+	if w.isFlagSet(WalletFlagSignTradingPairs) {
+		if sk = w.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+		} else {
+			return nil
+		}
+	}
+
+
 	tp = w.newTradingPair()
 
 	tp.active = true
@@ -1113,6 +1412,8 @@ func (w *Wallet)AddTradingPair(asset1, asset2 *Asset) *TradingPair {
 	if asset2 != nil {
 		asset2.linkTradingPair(tp)
 	}
+
+	tp.sign(sk)
 
 	return tp
 }
@@ -1160,6 +1461,128 @@ func (a *Account)init(wallet *Wallet) {
 	a.memoText = ""
 	a.memoId = 0
 	a.memoIdSet = false
+	a.signature = nil
+}
+
+func (a* Account)checkConsistency(key []byte) bool {
+	if !CheckPublicKey(a.publicKey) {
+		return false
+	}
+
+	switch a.accountType {
+	case AccountTypeSEP0005:
+		seed := a.wallet.decryptBip39Seed(key)
+		defer EraseByteBuffer(seed)
+
+		aseed, err := derivation.DeriveForPath(a.sep0005DerivationPath, seed)
+
+		if aseed != nil {
+			defer EraseByteBuffer(aseed.Key)
+		}
+
+		if aseed != nil && err == nil {
+			publicKey := derivePublicKey(aseed.Key)
+			s, _ := strkey.Encode(strkey.VersionByteAccountID, publicKey)
+			if a.publicKey == s {
+				return true
+			}
+		}
+
+	case AccountTypeRandom:
+		aseed := decryptAccountSeed(a.privateKey, key)
+		if aseed != nil {
+			defer EraseByteBuffer(aseed)
+			publicKey := derivePublicKey(aseed)
+			s, _ := strkey.Encode(strkey.VersionByteAccountID, publicKey)
+			if a.publicKey == s {
+				return true
+			}
+		}
+	case AccountTypeWatching:
+		if a.privateKey == nil && a.sep0005DerivationPath == "" {
+			return true
+		}
+
+	case AccountTypeAddressBook:
+		if a.privateKey == nil && a.sep0005DerivationPath == "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (a *Account)isSigned() bool {
+	return a.wallet.isFlagSet(WalletFlagSignAccounts)
+}
+
+func (a *Account)buildSigningData() []byte {
+
+	if a.isSigned() {
+
+		d := make([]byte, 2, len(a.desc)+len(a.memoText)+100)
+
+		binary.BigEndian.PutUint16(d[0:2], a.accountType)
+		d = append(d, a.publicKey...)
+
+		if a.accountType == AccountTypeSEP0005 {
+			d = append(d, a.sep0005DerivationPath...)
+		} else {
+			d = append(d, 0)
+		}
+
+		if a.wallet.isFlagSet(WalletFlagSignAccountMemo) {
+			d = append(d, a.memoText...)
+			d = append(d, 0)
+			if a.memoIdSet {
+				buf := make([]byte, 8)
+				binary.BigEndian.PutUint64(buf, a.memoId)
+				d = append(d, buf...)
+			} else {
+				d = append(d, 0)
+			}
+		} else {
+			d = append(d, 0)
+		}
+
+		if a.wallet.isFlagSet(WalletFlagSignDescription) {
+			d = append(d, a.desc...)
+			d = append(d, 0)
+		} else {
+			d = append(d, 0)
+		}
+
+		return d
+	}
+
+	return nil
+}
+
+func (a *Account)sign(sk ed25519.PrivateKey) {
+	if sk == nil {
+		a.signature = nil
+		return
+	}
+
+	d := a.buildSigningData()
+	if d != nil {
+		a.signature = ed25519.Sign(sk, d)
+	} else {
+		a.signature = nil
+	}
+}
+
+func (a *Account)checkSignature(vk ed25519.PublicKey) bool {
+	d := a.buildSigningData()
+	if d == nil {
+		return true
+	}
+
+	if a.signature == nil {
+		return false
+	}
+
+	return ed25519.Verify(vk, d, a.signature)
 }
 
 // Type returns account type.
@@ -1210,14 +1633,27 @@ func (a *Account)Description() string {
 	return a.desc
 }
 
-// SetDescription sets description on account. If give description string is not valid a descriptive error is returned.
-func (a *Account)SetDescription(desc string) error {
+// SetDescription sets description on account.
+// walletPassword is required only if account and description signing is selected in the wallet flags, otherwise
+// it is ignored.
+// Error is returned if given string does not pass the valid description check or an invalid wallet password was given.
+func (a *Account)SetDescription(desc string, walletPassword *string) error {
 	err := CheckDescription(desc)
 	if err != nil {
 		return err
 	}
 
-	a.desc = desc
+	if a.isSigned() && a.wallet.isFlagSet(WalletFlagSignDescription) {
+		if sk := a.wallet.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+			a.desc = desc
+			a.sign(sk)
+		} else {
+			return ErrorInvalidPassword
+		}
+	} else {
+		a.desc = desc
+	}
 
 	return nil
 }
@@ -1227,14 +1663,28 @@ func (a *Account)MemoText() string {
 	return a.memoText
 }
 
-// SetMemoText sets memo text on account. If given memo text string is not valid a descriptive error is returned.
-func (a *Account)SetMemoText(memo string) error {
+// SetMemoText sets memo text on account.
+// walletPassword is required only if account and memo signing is selected in the wallet flags, otherwise
+// it is ignored.
+// Error is returned if the given memo string is not valid or an invalid wallet password was given.
+
+func (a *Account)SetMemoText(memo string, walletPassword *string) error {
 	err := CheckMemoText(memo)
 	if err != nil {
 		return err
 	}
 
-	a.memoText = memo
+	if a.isSigned() && a.wallet.isFlagSet(WalletFlagSignAccountMemo) {
+		if sk := a.wallet.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+			a.memoText = memo
+			a.sign(sk)
+		} else {
+			return ErrorInvalidPassword
+		}
+	} else {
+		a.memoText = memo
+	}
 
 	return nil
 }
@@ -1249,15 +1699,47 @@ func (a *Account)MemoId() (bool, uint64) {
 }
 
 // SetMemoId sets memo id on account.
-func (a *Account)SetMemoId(memo uint64) {
-	a.memoId = memo
-	a.memoIdSet = true
+// walletPassword is required only if account and memo signing is selected in the wallet flags, otherwise
+// it is ignored.
+// Error is returned if an invalid wallet password was given.
+func (a *Account)SetMemoId(memo uint64, walletPassword *string) error {
+	if a.isSigned() && a.wallet.isFlagSet(WalletFlagSignAccountMemo) {
+		if sk := a.wallet.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+			a.memoId = memo
+			a.memoIdSet = true
+			a.sign(sk)
+		} else {
+			return ErrorInvalidPassword
+		}
+	} else {
+		a.memoId = memo
+		a.memoIdSet = true
+	}
+
+	return nil
 }
 
 // ClearMemoId clears memo id from account.
-func (a *Account)ClearMemoId() {
-	a.memoId = 0
-	a.memoIdSet = false
+// walletPassword is required only if account and memo signing is selected in the wallet flags, otherwise
+// it is ignored.
+// Error is returned if an invalid wallet password was given.
+func (a *Account)ClearMemoId(walletPassword *string) error {
+	if a.isSigned() && a.wallet.isFlagSet(WalletFlagSignAccountMemo) {
+		if sk := a.wallet.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+			a.memoId = 0
+			a.memoIdSet = false
+			a.sign(sk)
+		} else {
+			return ErrorInvalidPassword
+		}
+	} else {
+		a.memoId = 0
+		a.memoIdSet = false
+	}
+
+	return nil
 }
 
 // PublicKey returns public key of account.
@@ -1318,6 +1800,65 @@ func (a *Asset)init(wallet *Wallet) {
 	a.desc = ""
 	a.issuer = ""
 	a.assetId = ""
+	a.signature = nil
+}
+
+func (a *Asset)isSigned() bool {
+	return a.wallet.isFlagSet(WalletFlagSignAssets)
+}
+
+func (a *Asset)checkConsistency() bool {
+	if !CheckPublicKey(a.issuer) {
+		return false
+	}
+
+	if CheckAssetId(a.assetId) != nil {
+		return false
+	}
+
+	return true
+}
+
+func (a *Asset)buildSigningData() []byte {
+
+	if a.isSigned() {
+		d := make([]byte, 0, len(a.issuer)+len(a.assetId)+len(a.desc)+10)
+
+		d = append(d, a.issuer...)
+		d = append(d, a.assetId...)
+
+		if a.wallet.isFlagSet(WalletFlagSignDescription) {
+			d = append(d, a.desc...)
+		}
+		d = append(d, 0)
+
+		return d
+	}
+
+	return nil
+}
+
+func (a *Asset)sign(sk ed25519.PrivateKey) {
+	d := a.buildSigningData()
+	if d != nil {
+		a.signature = ed25519.Sign(sk, d)
+	} else {
+		a.signature = nil
+	}
+}
+
+func (a *Asset)checkSignature(vk ed25519.PublicKey) bool {
+	d := a.buildSigningData()
+
+	if d == nil {
+		return true
+	}
+
+	if a.signature == nil {
+		return false
+	}
+
+	return ed25519.Verify(vk, d, a.signature)
 }
 
 func (a *Asset)linkTradingPair(tp *TradingPair) {
@@ -1355,14 +1896,27 @@ func (a *Asset)Description() string {
 	return a.desc
 }
 
-// SetDescription sets description on asset. If give description string is not valid a descriptive error is returned, else nil.
-func (a *Asset)SetDescription(desc string) error {
+// SetDescription sets description on asset.
+// walletPassword is required only if asset and description signing is selected in the wallet flags, otherwise
+// it is ignored.
+// Error is returned if given string does not pass the valid description check or an invalid wallet password was given.
+func (a *Asset)SetDescription(desc string, walletPassword *string) error {
 	err := CheckDescription(desc)
 	if err != nil {
 		return err
 	}
 
-	a.desc = desc
+	if a.isSigned() && a.wallet.isFlagSet(WalletFlagSignDescription) {
+		if sk := a.wallet.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+			a.desc = desc
+			a.sign(sk)
+		} else {
+			return ErrorInvalidPassword
+		}
+	} else {
+		a.desc = desc
+	}
 
 	return nil
 }
@@ -1382,6 +1936,84 @@ func (tp *TradingPair)init(wallet *Wallet) {
 	tp.desc = ""
 	tp.asset1 = nil
 	tp.asset2 = nil
+	tp.signature = nil
+}
+
+func (tp *TradingPair)checkConsistency() bool {
+	if tp.asset1 == tp.asset2 {
+		return false
+	}
+
+	if tp.asset1 != nil && tp.asset1.wallet != tp.wallet {
+		return false
+	}
+
+	if tp.asset2 != nil && tp.asset2.wallet != tp.wallet {
+		return false
+	}
+
+	return true
+}
+
+func (tp *TradingPair)isSigned() bool {
+	return tp.wallet.isFlagSet(WalletFlagSignTradingPairs)
+}
+
+func (tp *TradingPair)buildSigningData() []byte {
+
+	if tp.isSigned() {
+		xlm := "xlm"
+		d := make([]byte, 0, 200)
+
+		if tp.asset1 != nil {
+			d = append(d, tp.asset1.issuer...)
+			d = append(d, tp.asset1.assetId...)
+			d = append(d, 0)
+		} else {
+			d = append(d, xlm...)
+			d = append(d, 0)
+		}
+
+		if tp.asset2 != nil {
+			d = append(d, tp.asset2.issuer...)
+			d = append(d, tp.asset2.assetId...)
+			d = append(d, 0)
+		} else {
+			d = append(d, xlm...)
+			d = append(d, 0)
+		}
+
+		if tp.wallet.isFlagSet(WalletFlagSignDescription) {
+			d = append(d, tp.desc...)
+			d = append(d, 0)
+		}
+
+		return d
+	}
+
+	return nil
+}
+
+func (tp *TradingPair)sign(sk ed25519.PrivateKey) {
+	d := tp.buildSigningData()
+	if d != nil {
+		tp.signature = ed25519.Sign(sk, d)
+	} else {
+		tp.signature = nil
+	}
+}
+
+func (tp *TradingPair)checkSignature(vk ed25519.PublicKey) bool {
+	d := tp.buildSigningData()
+	if d == nil {
+		return true
+	}
+
+	if tp.signature == nil {
+		return false
+	}
+
+	return ed25519.Verify(vk, d, tp.signature)
 }
 
 // Description returns description of trading pair. Empty string is returned if no description is defined.
@@ -1389,14 +2021,27 @@ func (tp *TradingPair)Description() string {
 	return tp.desc
 }
 
-// SetDescription sets description on tarding pair. If give description string is not valid a descriptive error is returned, else nil.
-func (tp *TradingPair)SetDescription(desc string) error {
+// SetDescription sets description on tarding pair.
+// walletPassword is required only if trading pair and description signing is selected in the wallet flags, otherwise
+// it is ignored.
+// Error is returned if given string does not pass the valid description check or an invalid wallet password was given.
+func (tp *TradingPair)SetDescription(desc string, walletPassword *string) error {
 	err := CheckDescription(desc)
 	if err != nil {
 		return err
 	}
 
-	tp.desc = desc
+	if tp.isSigned() && tp.wallet.isFlagSet(WalletFlagSignDescription) {
+		if sk := tp.wallet.deriveSigningKeyPassword(walletPassword); sk != nil {
+			defer EraseByteBuffer(sk)
+			tp.desc = desc
+			tp.sign(sk)
+		} else {
+			return ErrorInvalidPassword
+		}
+	} else {
+		tp.desc = desc
+	}
 
 	return nil
 }
@@ -1418,12 +2063,12 @@ func (tp *TradingPair)Asset2() *Asset {
 // This function should be called by an application first in order to gracefully handle 
 // hardware failures.
 func SelfTest() error {
-	if g_selfTestDone {
-		return g_selfTestStatus
+	if gSelfTestDone {
+		return gSelfTestStatus
 	}
 
-	g_selfTestDone = true
-	g_selfTestStatus = nil
+	gSelfTestDone = true
+	gSelfTestStatus = nil
 
 	errPrefix := "stellarwallet self test: "
 
@@ -1433,11 +2078,11 @@ func SelfTest() error {
 	mnPw := "p4ssphr4se"
 	wPw := "gBCdqqYVvCmJJAQOhtuwme8vvGArKDov"
 
-	wallet := NewWalletFromMnemonic(&wPw, w, &mnPw) 
+	wallet := NewWalletFromMnemonic(WalletFlagSignDescription|WalletFlagSignAccounts, &wPw, w, &mnPw)
 
 	if wallet == nil {
-		g_selfTestStatus = errors.New(errPrefix+"wallet creation from mnemonic seed failed")
-		return g_selfTestStatus
+		gSelfTestStatus = errors.New(errPrefix+"wallet creation from mnemonic seed failed")
+		return gSelfTestStatus
 	}
 
 	// verify seed generation according to SEP-0005 and decryption of seed
@@ -1458,12 +2103,12 @@ func SelfTest() error {
 		a := wallet.GenerateAccount(&wPw)
 
 		if a.PublicKey() != expectedKeys[2*i] {
-			g_selfTestStatus = errors.New(errPrefix+"invalid public key generated")
-			return g_selfTestStatus
+			gSelfTestStatus = errors.New(errPrefix+"invalid public key generated")
+			return gSelfTestStatus
 		}
 		if a.PrivateKey(&wPw)!= expectedKeys[2*i+1] {
-			g_selfTestStatus = errors.New(errPrefix+"invalid seed generated")
-			return g_selfTestStatus
+			gSelfTestStatus = errors.New(errPrefix+"invalid seed generated")
+			return gSelfTestStatus
 		}
 
 	}
@@ -1490,12 +2135,12 @@ func SelfTest() error {
 		a := wallet.AddRandomAccount(&expectedKeys[2*i+1], &wPw)
 
 		if a.PublicKey() != expectedKeys[2*i] {
-			g_selfTestStatus = errors.New(errPrefix+"invalid public key generated")
-			return g_selfTestStatus
+			gSelfTestStatus = errors.New(errPrefix+"invalid public key generated")
+			return gSelfTestStatus
 		}
 		if a.PrivateKey(&wPw)!= expectedKeys[2*i+1] {
-			g_selfTestStatus = errors.New(errPrefix+"invalid seed returned")
-			return g_selfTestStatus
+			gSelfTestStatus = errors.New(errPrefix+"invalid seed returned")
+			return gSelfTestStatus
 		}
 	}
 
